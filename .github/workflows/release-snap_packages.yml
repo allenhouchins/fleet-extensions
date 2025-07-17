@@ -1,0 +1,59 @@
+name: Release snap_packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+    paths:
+      - 'snap_packages/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          cd snap_packages
+          make deps
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap_packages-binaries
+          path: |
+            snap_packages/snap_packages-amd64.ext
+            snap_packages/snap_packages-arm64.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Fleet Extensions Release
+          body: |
+            # Fleet Extensions Release
+
+            This release includes updated binaries for the following extensions:
+
+            | Extension              | Built in this release |
+            |------------------------|----------------------|
+            | macos_compatibility    |                      |
+            | santa                  |                      |
+            | system_profiler        |                      |
+            | snap_packages          | ✅                   |
+            | nuget_packages         |                      |
+
+            See attached assets for binaries.
+          files: |
+            snap_packages/snap_packages-amd64.ext
+            snap_packages/snap_packages-arm64.ext
+          draft: false
+          prerelease: false 

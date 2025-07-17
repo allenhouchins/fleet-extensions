@@ -1,0 +1,61 @@
+name: Release santa
+
+on:
+  push:
+    tags:
+      - 'v*'
+    paths:
+      - 'santa/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          cd santa
+          make deps
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: santa-binaries
+          path: |
+            santa/santa-x86_64.ext
+            santa/santa-arm64.ext
+            santa/santa.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Fleet Extensions Release
+          body: |
+            # Fleet Extensions Release
+
+            This release includes updated binaries for the following extensions:
+
+            | Extension              | Built in this release |
+            |------------------------|----------------------|
+            | macos_compatibility    |                      |
+            | santa                  | ✅                   |
+            | system_profiler        |                      |
+            | snap_packages          |                      |
+            | nuget_packages         |                      |
+
+            See attached assets for binaries.
+          files: |
+            santa/santa-x86_64.ext
+            santa/santa-arm64.ext
+            santa/santa.ext
+          draft: false
+          prerelease: false 
