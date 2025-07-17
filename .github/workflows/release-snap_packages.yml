@@ -3,7 +3,7 @@ name: Release snap_packages
 on:
   push:
     tags:
-      - 'v*'
+      - 'latest'
     paths:
       - 'snap_packages/**'
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: latest
           name: Fleet Extensions Release
           body: |
             # Fleet Extensions Release
