@@ -74,8 +74,6 @@ jobs:
           tag_name: latest
           name: Fleet Extensions Release
           body: |
-            # Fleet Extensions Release
-
             This release includes updated binaries for the following extensions:
 
             | Extension              | Built in this release |
