@@ -90,7 +90,7 @@ func santaStatusColumns() []table.ColumnDefinition {
 }
 
 func santaStatusGenerate(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	cmd := exec.Command("santactl", "status", "--json")
+	cmd := exec.Command("/usr/local/bin/santactl", "status", "--json")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
