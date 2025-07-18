@@ -93,7 +93,8 @@ func santaStatusGenerate(ctx context.Context, queryContext table.QueryContext) (
 	cmd := exec.Command("/usr/local/bin/santactl", "status", "--json")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		// Gracefully return an empty result if santactl fails
+		return []map[string]string{}, nil
 	}
 
 	var status SantaStatus

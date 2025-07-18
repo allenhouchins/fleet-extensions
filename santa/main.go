@@ -85,7 +85,8 @@ func santaDeniedColumns() []table.ColumnDefinition {
 func generateSantaRules(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	rules, err := collectSantaRules()
 	if err != nil {
-		return nil, err
+		// Gracefully return an empty result if rules cannot be collected
+		return []map[string]string{}, nil
 	}
 
 	var results []map[string]string
@@ -106,7 +107,8 @@ func generateSantaRules(ctx context.Context, queryContext table.QueryContext) ([
 func generateSantaAllowed(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	entries, err := scrapeSantaLog(DecisionAllowed)
 	if err != nil {
-		return nil, err
+		// Gracefully return an empty result if log cannot be scraped
+		return []map[string]string{}, nil
 	}
 
 	var results []map[string]string
@@ -127,7 +129,8 @@ func generateSantaAllowed(ctx context.Context, queryContext table.QueryContext) 
 func generateSantaDenied(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	entries, err := scrapeSantaLog(DecisionDenied)
 	if err != nil {
-		return nil, err
+		// Gracefully return an empty result if log cannot be scraped
+		return []map[string]string{}, nil
 	}
 
 	var results []map[string]string
