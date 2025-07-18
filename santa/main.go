@@ -44,6 +44,7 @@ func main() {
 	server.RegisterPlugin(table.NewPlugin("santa_rules", santaRulesColumns(), generateSantaRules))
 	server.RegisterPlugin(table.NewPlugin("santa_allowed", santaAllowedColumns(), generateSantaAllowed))
 	server.RegisterPlugin(table.NewPlugin("santa_denied", santaDeniedColumns(), generateSantaDenied))
+	server.RegisterPlugin(santaStatusTablePlugin())
 
 	if err := server.Run(); err != nil {
 		log.Fatal(err)
