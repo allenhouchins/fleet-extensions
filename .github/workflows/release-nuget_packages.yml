@@ -2,8 +2,8 @@ name: Release nuget_packages
 
 on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
     paths:
       - 'nuget_packages/**'
   workflow_dispatch:

@@ -2,8 +2,8 @@ name: Release macos_compatibility
 
 on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
     paths:
       - 'macos_compatibility/**'
   workflow_dispatch:

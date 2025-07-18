@@ -2,8 +2,8 @@ name: Release santa
 
 on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
     paths:
       - 'santa/**'
   workflow_dispatch:

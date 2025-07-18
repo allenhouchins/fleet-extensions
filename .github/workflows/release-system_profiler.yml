@@ -2,8 +2,8 @@ name: Release system_profiler
 
 on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
     paths:
       - 'system_profiler/**'
   workflow_dispatch:

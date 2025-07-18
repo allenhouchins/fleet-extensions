@@ -2,8 +2,8 @@ name: Release snap_packages
 
 on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
     paths:
       - 'snap_packages/**'
   workflow_dispatch:
