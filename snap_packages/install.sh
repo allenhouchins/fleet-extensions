@@ -10,7 +10,7 @@
 set -e  # Exit on any error
 
 # Variables
-GITHUB_REPO="allenhouchins/snap-packages-extension"
+GITHUB_REPO="allenhouchins/fleet-extensions"
 EXTENSION_DIR="/var/fleetd/extensions"
 OSQUERY_DIR="/etc/osquery"
 EXTENSIONS_LOAD_FILE="$OSQUERY_DIR/extensions.load"
@@ -71,11 +71,11 @@ detect_architecture() {
     
     case "$arch" in
         "x86_64")
-            EXTENSION_NAME="snap_packages_amd64"
+            EXTENSION_NAME="snap_packages-amd64.ext"
             log "Architecture detected: amd64 (x86_64)"
             ;;
         "aarch64"|"arm64")
-            EXTENSION_NAME="snap_packages_arm64"
+            EXTENSION_NAME="snap_packages-arm64.ext"
             log "Architecture detected: arm64 (aarch64)"
             ;;
         *)
