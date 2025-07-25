@@ -67,7 +67,7 @@ func getNugetCommand(args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return exec.Command("nuget.exe", args...)
 	}
-	return exec.Command("nuget", args...)
+	return exec.Command("/opt/homebrew/bin/nuget", args...)
 }
 
 func generateNugetPackages(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
