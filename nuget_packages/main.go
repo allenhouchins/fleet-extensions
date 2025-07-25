@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -78,7 +79,7 @@ func generateNugetPackages(ctx context.Context, queryContext table.QueryContext)
 	cmd := getNugetCommand("search", "json")
 	output, err := cmd.Output()
 	if err != nil {
-		return []map[string]string{}, nil
+		return nil, fmt.Errorf("nuget command failed: %v", err)
 	}
 
 	results := []map[string]string{}
