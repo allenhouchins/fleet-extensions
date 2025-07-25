@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -67,14 +68,18 @@ func getNugetCommand(args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return exec.Command("nuget.exe", args...)
 	}
-	return exec.Command("/opt/homebrew/bin/nuget", args...)
+	if _, err := os.Stat("/opt/homebrew/bin/nuget"); err == nil {
+		return exec.Command("/opt/homebrew/bin/nuget", args...)
+	}
+	return exec.Command("nuget", args...)
 }
 
 func generateNugetPackages(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	cmd := getNugetCommand("search", "json")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		log.Printf("nuget command failed: %v", err)
+		return []map[string]string{}, nil
 	}
 
 	results := []map[string]string{}
