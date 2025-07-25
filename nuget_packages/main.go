@@ -66,23 +66,18 @@ func nugetPackagesColumns() []table.ColumnDefinition {
 
 func getNugetCommand(args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
-		log.Printf("Using nuget.exe for Windows")
 		return exec.Command("nuget.exe", args...)
 	}
 	if _, err := os.Stat("/opt/homebrew/bin/nuget"); err == nil {
-		log.Printf("Using /opt/homebrew/bin/nuget")
 		return exec.Command("/opt/homebrew/bin/nuget", args...)
 	}
-	log.Printf("Falling back to 'nuget' in PATH")
 	return exec.Command("nuget", args...)
 }
 
 func generateNugetPackages(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	cmd := getNugetCommand("search", "json")
-	log.Printf("Executing command: %s", cmd.String())
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("nuget command failed: %v, command was: %s", err, cmd.String())
 		return []map[string]string{}, nil
 	}
 
