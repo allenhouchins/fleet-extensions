@@ -69,9 +69,30 @@ func getNugetCommand(args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return exec.Command("nuget.exe", args...)
 	}
-	if _, err := os.Stat("/opt/homebrew/bin/nuget"); err == nil {
-		return exec.Command("/opt/homebrew/bin/nuget", args...)
+
+	// Check if nuget exists in Homebrew location
+	nugetPath := "/opt/homebrew/bin/nuget"
+	if _, err := os.Stat(nugetPath); err == nil {
+		cmd := exec.Command(nugetPath, args...)
+		// Set PATH to include Homebrew paths for root
+		cmd.Env = append(os.Environ(), "PATH=/opt/homebrew/bin:/opt/homebrew/sbin:"+os.Getenv("PATH"))
+		return cmd
 	}
+
+	// Fallback: check other common Homebrew locations
+	homebrewPaths := []string{
+		"/usr/local/bin/nuget", // Intel Mac
+	}
+
+	for _, path := range homebrewPaths {
+		if _, err := os.Stat(path); err == nil {
+			cmd := exec.Command(path, args...)
+			// Set PATH to include Homebrew paths for root
+			cmd.Env = append(os.Environ(), "PATH=/usr/local/bin:/usr/local/sbin:"+os.Getenv("PATH"))
+			return cmd
+		}
+	}
+
 	return exec.Command("nuget", args...)
 }
 
