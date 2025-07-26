@@ -18,6 +18,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Description:** Provides snap package information as a native osquery table.
 - **Platforms:** Linux
 - **Binaries:** `snap_packages-amd64.ext`, `snap_packages-arm64.ext`
+- **Installation:** Automated install script available for Ubuntu systems
 
 ### [macos_compatibility](macos_compatibility/README.md)
 - **Description:** Shows the compatibility of Mac hardware with the latest macOS versions.
@@ -25,9 +26,10 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Binaries:** `macos_compatibility-x86_64.ext`, `macos_compatibility-arm64.ext`, `macos_compatibility.ext`
 
 ### [santa](santa/README.md)
-- **Description:** Exposes Santa binary authorization rules and decision logs as native osquery tables.
+- **Description:** Exposes Santa binary authorization rules, decision logs, and status information as native osquery tables.
 - **Platforms:** macOS (Intel and Apple Silicon)
 - **Binaries:** `santa-x86_64.ext`, `santa-arm64.ext`, `santa.ext`
+- **Tables:** `santa_rules`, `santa_allowed`, `santa_denied`, `santa_status`
 
 ### [system_profiler](system_profiler/README.md)
 - **Description:** Provides macOS system profiler information as a native osquery table.
@@ -38,6 +40,17 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Description:** Provides NuGet package search results as a native osquery table. Runs `nuget search` and parses the output.
 - **Platforms:** macOS (Intel and Apple Silicon), Windows (amd64, arm64)
 - **Binaries:** `nuget_packages-x86_64.ext`, `nuget_packages-arm64.ext`, `nuget_packages.ext`, `nuget_packages-amd64.exe`, `nuget_packages-arm64.exe`
+
+## Automated Builds
+
+This repository uses GitHub Actions to automatically build and release extensions when changes are pushed to the `main` branch. Each extension has its own workflow that:
+
+- **Triggers on changes** to the extension's directory in the `main` branch
+- **Builds binaries** for all supported platforms
+- **Creates a GitHub release** with the tag `latest`
+- **Uploads the appropriate binaries** as release assets
+
+Extensions can also be built manually using the instructions below.
 
 ## Building Extensions
 

@@ -13,8 +13,22 @@ A Go-based osquery extension that provides snap package information as a native 
 | publisher  | TEXT   | Package publisher              |
 | notes      | TEXT   | Additional notes               |
 
-## Building the Extension
+## Installation
 
+### Automated Installation (Ubuntu)
+An automated installation script is provided for Ubuntu systems:
+```bash
+sudo ./install-snap-packages-extension.sh
+```
+
+This script:
+- Detects your system architecture (amd64 or arm64)
+- Downloads the correct binary from the latest release of `allenhouchins/fleet-extensions`
+- Installs it to `/var/fleetd/extensions/`
+- Configures osquery to load the extension
+- Restarts the orbit service if available
+
+### Manual Installation
 1. Clone the repository
 2. Install dependencies:
    ```bash
@@ -62,10 +76,11 @@ SELECT COUNT(*) as total_packages FROM snap_packages;
 ## Structure
 
 ```
-├── main.go              # Main extension code
-├── go.mod               # Go module definition
-├── Makefile             # Build configuration
-└── README.md            # This file
+├── main.go                              # Main extension code
+├── install-snap-packages-extension.sh   # Automated installation script
+├── go.mod                               # Go module definition
+├── Makefile                             # Build configuration
+└── README.md                            # This file
 ```
 
 ## Comparison with Shell Script

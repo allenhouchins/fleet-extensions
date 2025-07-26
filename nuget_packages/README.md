@@ -60,6 +60,15 @@ osqueryi.exe --extension=nuget_packages-arm64.exe
 SELECT * FROM nuget_packages;
 ```
 
+## Fleet Execution Notes
+
+When running with Fleet (which executes as root), the extension automatically handles PATH issues by:
+- Using absolute paths to Homebrew installations (`/opt/homebrew/bin/nuget` on Apple Silicon, `/usr/local/bin/nuget` on Intel Mac)
+- Setting the PATH environment variable to include Homebrew paths during execution
+- Gracefully handling cases where `nuget` is not installed
+
+This ensures the extension works correctly both locally and when deployed via Fleet.
+
 ## Structure
 
 ```
@@ -75,6 +84,8 @@ SELECT * FROM nuget_packages;
 - macOS or Windows system (64-bit only)
 - osquery or Fleet
 - `nuget` CLI installed and available in PATH (or `nuget.exe` on Windows)
+  - On macOS with Homebrew: `brew install dotnet` (includes nuget)
+  - On Windows: Install .NET SDK which includes nuget
 
 ## License
 
