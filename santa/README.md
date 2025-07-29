@@ -9,8 +9,10 @@ A Go-based osquery extension that provides access to Santa binary authorization 
 |---------------|--------|---------------------------------------------|
 | identifier    | TEXT   | Rule identifier (SHA256, Team ID, etc.)     |
 | type          | TEXT   | Type of rule (Binary, Certificate, TeamID)  |
-| state         | TEXT   | Rule state (Whitelist, Blacklist)           |
+| state         | TEXT   | Rule state (Allowlist, Blocklist)           |
 | custom_message| TEXT   | Custom message associated with the rule      |
+
+> **Note:** The extension uses inclusive terminology ("Allowlist", "Blocklist") in all output, but maintains backward compatibility with legacy terminology internally.
 
 ### santa_allowed
 | Column      | Type   | Description                       |

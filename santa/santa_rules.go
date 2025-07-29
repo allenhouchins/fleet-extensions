@@ -133,9 +133,9 @@ func getRuleTypeFromInt(typeInt int) RuleType {
 func getRuleStateFromInt(stateInt int) RuleState {
 	switch stateInt {
 	case 1:
-		return RuleStateWhitelist
+		return RuleStateAllowlist
 	case 2:
-		return RuleStateBlacklist
+		return RuleStateBlocklist
 	default:
 		return RuleStateUnknown
 	}
@@ -162,10 +162,10 @@ func getRuleTypeNameFromDB(typeStr string) RuleType {
 // getRuleStateNameFromDB converts database state string to RuleState
 func getRuleStateNameFromDB(stateStr string) RuleState {
 	switch strings.ToLower(stateStr) {
-	case "whitelist":
-		return RuleStateWhitelist
-	case "blacklist":
-		return RuleStateBlacklist
+	case "allowlist", "whitelist":
+		return RuleStateAllowlist
+	case "blocklist", "blacklist":
+		return RuleStateBlocklist
 	default:
 		return RuleStateUnknown
 	}

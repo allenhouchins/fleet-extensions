@@ -36,8 +36,8 @@ const (
 type RuleState int
 
 const (
-	RuleStateWhitelist RuleState = iota
-	RuleStateBlacklist
+	RuleStateAllowlist RuleState = iota
+	RuleStateBlocklist
 	RuleStateUnknown
 )
 
@@ -86,10 +86,10 @@ func GetRuleTypeName(ruleType RuleType) string {
 // GetRuleStateName returns the string representation of a rule state
 func GetRuleStateName(ruleState RuleState) string {
 	switch ruleState {
-	case RuleStateWhitelist:
-		return "Whitelist"
-	case RuleStateBlacklist:
-		return "Blacklist"
+	case RuleStateAllowlist:
+		return "Allowlist"
+	case RuleStateBlocklist:
+		return "Blocklist"
 	default:
 		return "Unknown"
 	}
@@ -118,10 +118,10 @@ func GetTypeFromRuleName(name string) RuleType {
 func GetStateFromRuleName(name string) RuleState {
 	name = strings.ToLower(name)
 	switch name {
-	case "whitelist":
-		return RuleStateWhitelist
-	case "blacklist":
-		return RuleStateBlacklist
+	case "allowlist", "whitelist":
+		return RuleStateAllowlist
+	case "blocklist", "blacklist":
+		return RuleStateBlocklist
 	default:
 		return RuleStateUnknown
 	}
