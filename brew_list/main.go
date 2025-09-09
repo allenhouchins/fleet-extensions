@@ -326,7 +326,7 @@ func readBrewCommands(brewPath string) ([]map[string]string, error) {
 
 	// Parse package list and build results
 	results := []map[string]string{}
-	scanner = bufio.NewScanner(strings.NewReader(string(output)))
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 
 	for scanner.Scan() {
 		packageName := strings.TrimSpace(scanner.Text())
