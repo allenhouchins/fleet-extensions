@@ -107,6 +107,8 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 		return nil, fmt.Errorf("could not find Homebrew installation: %v", err)
 	}
 
+	log.Printf("Found Homebrew at: %s", brewPath)
+
 	// Read from Homebrew database directly
 	results, err := readHomebrewDatabase(brewPath)
 	if err != nil {
@@ -153,16 +155,38 @@ func findHomebrewPath() (string, error) {
 }
 
 func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
-	// Homebrew stores package information in a SQLite database
-	dbPath := filepath.Join(brewPath, "var", "db", "formula_versions.db")
+	log.Printf("Looking for Homebrew database in: %s", brewPath)
 
-	// Check if database exists
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		// Try alternative database location
-		dbPath = filepath.Join(brewPath, "var", "db", "formula_versions.sqlite")
-		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("Homebrew database not found at %s", dbPath)
+	// Check what's actually in the var/db directory
+	varDBPath := filepath.Join(brewPath, "var", "db")
+	if entries, err := os.ReadDir(varDBPath); err == nil {
+		log.Printf("Contents of %s:", varDBPath)
+		for _, entry := range entries {
+			log.Printf("  - %s", entry.Name())
 		}
+	}
+
+	// Try multiple possible database locations
+	possibleDBPaths := []string{
+		filepath.Join(brewPath, "var", "db", "formula_versions.db"),
+		filepath.Join(brewPath, "var", "db", "formula_versions.sqlite"),
+		filepath.Join(brewPath, "var", "db", "formula_versions"),
+		filepath.Join(brewPath, "var", "db", "homebrew.db"),
+		filepath.Join(brewPath, "var", "db", "homebrew.sqlite"),
+		filepath.Join(brewPath, "var", "db", "homebrew"),
+	}
+
+	var dbPath string
+	for _, path := range possibleDBPaths {
+		if _, err := os.Stat(path); err == nil {
+			dbPath = path
+			log.Printf("Found database at: %s", dbPath)
+			break
+		}
+	}
+
+	if dbPath == "" {
+		return nil, fmt.Errorf("Homebrew database not found in any expected location")
 	}
 
 	// Copy database to temporary location to avoid locking issues
