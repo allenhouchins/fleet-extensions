@@ -11,6 +11,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [santa](santa/README.md)                 | Santa binary authorization rules and decisions           | macOS               |
 | [system_profiler](system_profiler/README.md)       | macOS system profiler information as a native table      | macOS               |
 | [nuget_packages](nuget_packages/README.md)         | NuGet package search results as a native osquery table   | macOS, Windows      |
+| [brew_list](brew_list/README.md)                   | Homebrew package information as a native osquery table   | macOS, Linux        |
 
 ## Extension Details
 
@@ -41,6 +42,12 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Platforms:** macOS (Intel and Apple Silicon), Windows (amd64, arm64)
 - **Binaries:** `nuget_packages-x86_64.ext`, `nuget_packages-arm64.ext`, `nuget_packages.ext`, `nuget_packages-amd64.exe`, `nuget_packages-arm64.exe`
 
+### [brew_list](brew_list/README.md)
+- **Description:** Provides Homebrew package information as a native osquery table. Lists installed packages with versions and installation paths.
+- **Platforms:** macOS (Intel and Apple Silicon), Linux (with Linuxbrew)
+- **Binaries:** `brew_list.ext`
+- **Tables:** `brew_list`
+
 ## Automated Builds
 
 This repository uses GitHub Actions to automatically build and release extensions when changes are pushed to the `main` branch. Each extension has its own workflow that:
@@ -62,7 +69,7 @@ Each extension is self-contained in its own directory. To build an extension:
    make deps
    ```
 3. Build the extension:
-   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`):
+   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`):
      ```bash
      make build
      ```
@@ -76,6 +83,12 @@ Each extension is self-contained in its own directory. To build an extension:
      This produces:
      - `snap_packages-amd64.ext` (for x86_64/amd64 Linux)
      - `snap_packages-arm64.ext` (for ARM64 Linux)
+   - For **Cross-platform extension** (`brew_list`):
+     ```bash
+     make build
+     ```
+     This produces:
+     - `brew_list.ext` (works on macOS and Linux with Homebrew/Linuxbrew)
    - For **Windows extension** (`nuget_packages`):
      ```bash
      make windows

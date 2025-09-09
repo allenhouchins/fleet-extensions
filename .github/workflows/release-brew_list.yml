@@ -2,8 +2,8 @@ name: Release brew_list
 
 on:
   push:
-    tags:
-      - 'latest'
+    branches:
+      - main
     paths:
       - 'brew_list/**'
   workflow_dispatch:
