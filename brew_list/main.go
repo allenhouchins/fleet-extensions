@@ -64,6 +64,7 @@ func brewListColumns() []table.ColumnDefinition {
 		table.TextColumn("package_name"),
 		table.TextColumn("version"),
 		table.TextColumn("install_path"),
+		table.TextColumn("type"),
 	}
 }
 
@@ -107,8 +108,6 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 	if err != nil {
 		return nil, fmt.Errorf("could not find Homebrew installation: %v", err)
 	}
-
-	log.Printf("Found Homebrew at: %s", brewPath)
 
 	// Read from Homebrew database directly
 	results, err := readHomebrewDatabase(brewPath)
@@ -156,18 +155,6 @@ func findHomebrewPath() (string, error) {
 }
 
 func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
-	log.Printf("Looking for Homebrew database in: %s", brewPath)
-
-	// Check what's actually in the var/db directory
-	varDBPath := filepath.Join(brewPath, "var", "db")
-	if entries, err := os.ReadDir(varDBPath); err == nil {
-		log.Printf("Contents of %s:", varDBPath)
-		for _, entry := range entries {
-			log.Printf("  - %s", entry.Name())
-		}
-	} else {
-		log.Printf("Could not read directory %s: %v", varDBPath, err)
-	}
 
 	// Try multiple possible database locations
 	possibleDBPaths := []string{
@@ -183,13 +170,11 @@ func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
 	for _, path := range possibleDBPaths {
 		if _, err := os.Stat(path); err == nil {
 			dbPath = path
-			log.Printf("Found database at: %s", dbPath)
 			break
 		}
 	}
 
 	if dbPath == "" {
-		log.Printf("No database found, falling back to brew commands")
 		return readBrewCommands(brewPath)
 	}
 
@@ -247,10 +232,14 @@ func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
 		}
 
 		if packageName != "" {
+			// Determine if it's a cask or formula
+			packageType := determinePackageType(brewPath, packageName)
+
 			results = append(results, map[string]string{
 				"package_name": packageName,
 				"version":      packageVersion,
 				"install_path": installPath,
+				"type":         packageType,
 			})
 		}
 	}
@@ -309,7 +298,6 @@ func readBrewCommands(brewPath string) ([]map[string]string, error) {
 	versionCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1")
 	versionOutput, err := versionCmd.CombinedOutput()
 	if err != nil {
-		log.Printf("brew list --versions failed: %v, output: %s", err, string(versionOutput))
 		// Fallback: try to get versions from package directories
 		versionMap = getVersionsFromDirectories(brewPath, strings.Fields(string(output)))
 	} else {
@@ -338,10 +326,14 @@ func readBrewCommands(brewPath string) ([]map[string]string, error) {
 		version := versionMap[packageName]
 		installPath := filepath.Join(brewPath, "opt", packageName)
 
+		// Determine if it's a cask or formula
+		packageType := determinePackageType(brewPath, packageName)
+
 		results = append(results, map[string]string{
 			"package_name": packageName,
 			"version":      version,
 			"install_path": installPath,
+			"type":         packageType,
 		})
 	}
 
@@ -390,4 +382,21 @@ func getVersionsFromDirectories(brewPath string, packageNames []string) map[stri
 	}
 
 	return versionMap
+}
+
+func determinePackageType(brewPath, packageName string) string {
+	// Check if it's a cask by looking in the Caskroom directory
+	caskPath := filepath.Join(brewPath, "Caskroom", packageName)
+	if _, err := os.Stat(caskPath); err == nil {
+		return "cask"
+	}
+
+	// Check if it's a formula by looking in the Cellar directory
+	cellarPath := filepath.Join(brewPath, "Cellar", packageName)
+	if _, err := os.Stat(cellarPath); err == nil {
+		return "formula"
+	}
+
+	// Default to formula if we can't determine
+	return "formula"
 }
