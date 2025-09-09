@@ -107,9 +107,12 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 
 	// Get versions for all packages at once
 	versionCmd := getBrewCommand("list", "--versions")
-	versionOutput, err := versionCmd.Output()
+	log.Printf("Executing version command: %s", versionCmd.String())
+	versionOutput, err := versionCmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("brew list --versions command failed: %v", err)
+		log.Printf("brew list --versions failed: %v, output: %s", err, string(versionOutput))
+		// Continue without versions rather than failing completely
+		versionOutput = []byte("")
 	}
 
 	// Parse versions into a map
