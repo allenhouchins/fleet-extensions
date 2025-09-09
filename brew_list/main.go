@@ -105,6 +105,24 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 		return nil, fmt.Errorf("brew list command failed: %v", err)
 	}
 
+	// Get versions for all packages at once
+	versionCmd := getBrewCommand("list", "--versions")
+	versionOutput, err := versionCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("brew list --versions command failed: %v", err)
+	}
+
+	// Parse versions into a map
+	versionMap := make(map[string]string)
+	versionScanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
+	for versionScanner.Scan() {
+		line := strings.TrimSpace(versionScanner.Text())
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			versionMap[parts[0]] = parts[1]
+		}
+	}
+
 	results := []map[string]string{}
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 
@@ -114,8 +132,9 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 			continue
 		}
 
-		// Get version and install path for each package
-		version, installPath := getPackageInfo(packageName)
+		// Get version from the map and install path
+		version := versionMap[packageName]
+		installPath := getInstallPath(packageName)
 
 		results = append(results, map[string]string{
 			"package_name": packageName,
@@ -127,24 +146,7 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 	return results, nil
 }
 
-func getPackageInfo(packageName string) (string, string) {
-	// Get version using brew list --versions (returns all packages)
-	versionCmd := getBrewCommand("list", "--versions")
-	versionOutput, err := versionCmd.Output()
-	version := ""
-	if err == nil {
-		// Parse the output to find the specific package
-		scanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			parts := strings.Fields(line)
-			if len(parts) >= 2 && parts[0] == packageName {
-				version = parts[1]
-				break
-			}
-		}
-	}
-
+func getInstallPath(packageName string) string {
 	// Get install path using brew --prefix
 	pathCmd := getBrewCommand("--prefix", packageName)
 	pathOutput, err := pathCmd.Output()
@@ -174,5 +176,5 @@ func getPackageInfo(packageName string) (string, string) {
 		}
 	}
 
-	return version, installPath
+	return installPath
 }
