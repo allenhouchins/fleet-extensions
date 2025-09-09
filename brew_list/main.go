@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"flag"
@@ -164,6 +165,8 @@ func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
 		for _, entry := range entries {
 			log.Printf("  - %s", entry.Name())
 		}
+	} else {
+		log.Printf("Could not read directory %s: %v", varDBPath, err)
 	}
 
 	// Try multiple possible database locations
@@ -186,7 +189,8 @@ func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
 	}
 
 	if dbPath == "" {
-		return nil, fmt.Errorf("Homebrew database not found in any expected location")
+		log.Printf("No database found, falling back to brew commands")
+		return readBrewCommands(brewPath)
 	}
 
 	// Copy database to temporary location to avoid locking issues
@@ -285,4 +289,61 @@ func copyDatabase(srcPath string) (string, error) {
 	}
 
 	return tempPath, nil
+}
+
+func readBrewCommands(brewPath string) ([]map[string]string, error) {
+	// Use brew commands with proper environment setup to avoid root issues
+	brewBinary := filepath.Join(brewPath, "bin", "brew")
+
+	// Get list of installed packages
+	cmd := exec.Command(brewBinary, "list")
+	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("brew list command failed: %v", err)
+	}
+
+	// Get versions for all packages at once
+	versionCmd := exec.Command(brewBinary, "list", "--versions")
+	versionCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1")
+	versionOutput, err := versionCmd.Output()
+	if err != nil {
+		log.Printf("brew list --versions failed: %v", err)
+		// Continue without versions
+		versionOutput = []byte("")
+	}
+
+	// Parse versions into a map
+	versionMap := make(map[string]string)
+	scanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			versionMap[parts[0]] = parts[1]
+		}
+	}
+
+	// Parse package list and build results
+	results := []map[string]string{}
+	scanner = bufio.NewScanner(strings.NewReader(string(output)))
+
+	for scanner.Scan() {
+		packageName := strings.TrimSpace(scanner.Text())
+		if packageName == "" {
+			continue
+		}
+
+		// Get version from the map and construct install path
+		version := versionMap[packageName]
+		installPath := filepath.Join(brewPath, "opt", packageName)
+
+		results = append(results, map[string]string{
+			"package_name": packageName,
+			"version":      version,
+			"install_path": installPath,
+		})
+	}
+
+	return results, nil
 }
