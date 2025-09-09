@@ -117,7 +117,22 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 }
 
 func findHomebrewPath() (string, error) {
-	// Check common Homebrew installation paths
+	// First, try to find brew using 'which' command
+	whichCmd := exec.Command("which", "brew")
+	output, err := whichCmd.Output()
+	if err == nil {
+		brewPath := strings.TrimSpace(string(output))
+		if brewPath != "" {
+			// Extract the Homebrew root directory from the brew binary path
+			// e.g., /opt/homebrew/bin/brew -> /opt/homebrew
+			homebrewRoot := filepath.Dir(filepath.Dir(brewPath))
+			if _, err := os.Stat(homebrewRoot); err == nil {
+				return homebrewRoot, nil
+			}
+		}
+	}
+
+	// Fallback: check common Homebrew installation paths
 	homebrewPaths := []string{
 		"/opt/homebrew",              // Apple Silicon Mac
 		"/usr/local",                 // Intel Mac
