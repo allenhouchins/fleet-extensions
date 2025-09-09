@@ -128,24 +128,50 @@ func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]m
 }
 
 func getPackageInfo(packageName string) (string, string) {
-	// Get version
-	versionCmd := getBrewCommand("list", "--versions", packageName)
+	// Get version using brew list --versions (returns all packages)
+	versionCmd := getBrewCommand("list", "--versions")
 	versionOutput, err := versionCmd.Output()
 	version := ""
 	if err == nil {
-		version = strings.TrimSpace(string(versionOutput))
-		// Extract just the version number (remove package name)
-		if parts := strings.Fields(version); len(parts) > 1 {
-			version = parts[1]
+		// Parse the output to find the specific package
+		scanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			parts := strings.Fields(line)
+			if len(parts) >= 2 && parts[0] == packageName {
+				version = parts[1]
+				break
+			}
 		}
 	}
 
-	// Get install path
+	// Get install path using brew --prefix
 	pathCmd := getBrewCommand("--prefix", packageName)
 	pathOutput, err := pathCmd.Output()
 	installPath := ""
 	if err == nil {
 		installPath = strings.TrimSpace(string(pathOutput))
+	}
+
+	// If install path is empty, try using brew info to get more details
+	if installPath == "" {
+		infoCmd := getBrewCommand("info", packageName)
+		infoOutput, err := infoCmd.Output()
+		if err == nil {
+			// Parse brew info output to find the install path
+			scanner := bufio.NewScanner(strings.NewReader(string(infoOutput)))
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.Contains(line, "Installed to:") {
+					// Extract path from "Installed to: /path/to/package"
+					parts := strings.Split(line, "Installed to:")
+					if len(parts) > 1 {
+						installPath = strings.TrimSpace(parts[1])
+						break
+					}
+				}
+			}
+		}
 	}
 
 	return version, installPath

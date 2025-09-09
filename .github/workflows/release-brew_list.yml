@@ -54,3 +54,4 @@ jobs:
             brew_list/brew_list.ext
           draft: false
           prerelease: false
+
