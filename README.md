@@ -43,7 +43,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Binaries:** `nuget_packages-x86_64.ext`, `nuget_packages-arm64.ext`, `nuget_packages.ext`, `nuget_packages-amd64.exe`, `nuget_packages-arm64.exe`
 
 ### [brew_list](brew_list/README.md)
-- **Description:** Provides Homebrew package information as a native osquery table. Lists installed packages with versions and installation paths.
+- **Description:** Provides Homebrew package information as a native osquery table. Lists installed packages with versions, installation paths, and package types (cask vs formula).
 - **Platforms:** macOS (Intel and Apple Silicon), Linux (with Linuxbrew)
 - **Binaries:** `brew_list.ext`
 - **Tables:** `brew_list`

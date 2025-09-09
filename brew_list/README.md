@@ -4,7 +4,7 @@ An osquery extension that provides information about Homebrew packages installed
 
 ## Overview
 
-This extension creates a `brew_list` table that contains information about all Homebrew packages installed on the system, including package names, versions, and installation paths.
+This extension creates a `brew_list` table that contains information about all Homebrew packages installed on the system, including package names, versions, installation paths, and package types (cask vs formula).
 
 ## Table Schema
 
@@ -15,6 +15,7 @@ The `brew_list` table has the following columns:
 | package_name | TEXT | Name of the Homebrew package |
 | version | TEXT | Installed version of the package |
 | install_path | TEXT | Full path where the package is installed |
+| type | TEXT | Package type: "cask" or "formula" |
 
 ## Example Queries
 
@@ -36,6 +37,21 @@ SELECT COUNT(*) as total_packages FROM brew_list;
 ### Find packages with specific version patterns
 ```sql
 SELECT package_name, version FROM brew_list WHERE version LIKE '2.%';
+```
+
+### List only casks
+```sql
+SELECT * FROM brew_list WHERE type = 'cask';
+```
+
+### List only formulae
+```sql
+SELECT * FROM brew_list WHERE type = 'formula';
+```
+
+### Count packages by type
+```sql
+SELECT type, COUNT(*) as count FROM brew_list GROUP BY type;
 ```
 
 ## Requirements
@@ -82,19 +98,22 @@ SELECT * FROM brew_list;
 
 ## How It Works
 
-The extension uses intelligent Homebrew detection to work regardless of installation location:
+The extension uses intelligent Homebrew detection and multiple data collection methods:
 
 1. **Dynamic Discovery**: Uses `which brew` to find the actual Homebrew installation path
 2. **Comprehensive Fallbacks**: Checks common installation paths:
    - `/opt/homebrew/bin/brew` (Apple Silicon Macs)
    - `/usr/local/bin/brew` (Intel Macs)
    - `/home/linuxbrew/.linuxbrew/bin/brew` (Linux)
-3. **Environment Setup**: Sets proper PATH environment for Homebrew dependencies
-4. **Package Enumeration**: Uses the `brew list` command to get all installed packages
-5. **Version & Path Collection**: For each package, runs:
-   - `brew list --versions <package>` to get version information
-   - `brew --prefix <package>` to get the installation path
-6. **Structured Output**: Returns the data in a structured table format
+3. **Multi-Tier Data Collection**:
+   - **Tier 1**: Attempts to read Homebrew's SQLite database directly (most efficient)
+   - **Tier 2**: Falls back to `brew list` commands with proper environment setup
+   - **Tier 3**: Uses directory-based version detection from symlink targets
+4. **Package Type Detection**: Determines if packages are casks or formulae by checking:
+   - `/opt/homebrew/Caskroom/<package>` for casks
+   - `/opt/homebrew/Cellar/<package>` for formulae
+5. **Root Compatibility**: Works reliably even when running as root (typical for osqueryd/Fleet)
+6. **Structured Output**: Returns complete package information in a structured table format
 
 ## Error Handling
 
