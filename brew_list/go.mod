@@ -2,7 +2,10 @@ module brew_list
 
 go 1.21
 
-require github.com/osquery/osquery-go v0.0.0-20250131154556-629f995b6947
+require (
+	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/osquery/osquery-go v0.0.0-20250131154556-629f995b6947
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect

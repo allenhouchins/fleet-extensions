@@ -1,16 +1,19 @@
 package main
 
 import (
-	"bufio"
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/osquery/osquery-go"
 	"github.com/osquery/osquery-go/plugin/table"
 )
@@ -98,86 +101,149 @@ func getBrewCommand(args ...string) *exec.Cmd {
 }
 
 func generateBrewList(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	// Get list of installed packages
-	cmd := getBrewCommand("list")
-	output, err := cmd.Output()
+	// Find Homebrew installation path
+	brewPath, err := findHomebrewPath()
 	if err != nil {
-		return nil, fmt.Errorf("brew list command failed: %v", err)
+		return nil, fmt.Errorf("could not find Homebrew installation: %v", err)
 	}
 
-	// Get versions for all packages at once
-	versionCmd := getBrewCommand("list", "--versions")
-	log.Printf("Executing version command: %s", versionCmd.String())
-	versionOutput, err := versionCmd.CombinedOutput()
+	// Read from Homebrew database directly
+	results, err := readHomebrewDatabase(brewPath)
 	if err != nil {
-		log.Printf("brew list --versions failed: %v, output: %s", err, string(versionOutput))
-		// Continue without versions rather than failing completely
-		versionOutput = []byte("")
-	}
-
-	// Parse versions into a map
-	versionMap := make(map[string]string)
-	versionScanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
-	for versionScanner.Scan() {
-		line := strings.TrimSpace(versionScanner.Text())
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			versionMap[parts[0]] = parts[1]
-		}
-	}
-
-	results := []map[string]string{}
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
-
-	for scanner.Scan() {
-		packageName := strings.TrimSpace(scanner.Text())
-		if packageName == "" {
-			continue
-		}
-
-		// Get version from the map and install path
-		version := versionMap[packageName]
-		installPath := getInstallPath(packageName)
-
-		results = append(results, map[string]string{
-			"package_name": packageName,
-			"version":      version,
-			"install_path": installPath,
-		})
+		return nil, fmt.Errorf("failed to read Homebrew database: %v", err)
 	}
 
 	return results, nil
 }
 
-func getInstallPath(packageName string) string {
-	// Get install path using brew --prefix
-	pathCmd := getBrewCommand("--prefix", packageName)
-	pathOutput, err := pathCmd.Output()
-	installPath := ""
-	if err == nil {
-		installPath = strings.TrimSpace(string(pathOutput))
+func findHomebrewPath() (string, error) {
+	// Check common Homebrew installation paths
+	homebrewPaths := []string{
+		"/opt/homebrew",              // Apple Silicon Mac
+		"/usr/local",                 // Intel Mac
+		"/home/linuxbrew/.linuxbrew", // Linux
 	}
 
-	// If install path is empty, try using brew info to get more details
-	if installPath == "" {
-		infoCmd := getBrewCommand("info", packageName)
-		infoOutput, err := infoCmd.Output()
-		if err == nil {
-			// Parse brew info output to find the install path
-			scanner := bufio.NewScanner(strings.NewReader(string(infoOutput)))
-			for scanner.Scan() {
-				line := scanner.Text()
-				if strings.Contains(line, "Installed to:") {
-					// Extract path from "Installed to: /path/to/package"
-					parts := strings.Split(line, "Installed to:")
-					if len(parts) > 1 {
-						installPath = strings.TrimSpace(parts[1])
-						break
-					}
-				}
+	for _, path := range homebrewPaths {
+		// Check if the path exists and contains Homebrew
+		if _, err := os.Stat(path); err == nil {
+			// Check for Homebrew-specific files
+			if _, err := os.Stat(filepath.Join(path, "bin", "brew")); err == nil {
+				return path, nil
 			}
 		}
 	}
 
-	return installPath
+	return "", fmt.Errorf("Homebrew installation not found")
+}
+
+func readHomebrewDatabase(brewPath string) ([]map[string]string, error) {
+	// Homebrew stores package information in a SQLite database
+	dbPath := filepath.Join(brewPath, "var", "db", "formula_versions.db")
+
+	// Check if database exists
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		// Try alternative database location
+		dbPath = filepath.Join(brewPath, "var", "db", "formula_versions.sqlite")
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("Homebrew database not found at %s", dbPath)
+		}
+	}
+
+	// Copy database to temporary location to avoid locking issues
+	tempDB, err := copyDatabase(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy database: %v", err)
+	}
+	defer os.Remove(tempDB)
+
+	// Open the temporary database
+	db, err := sql.Open("sqlite3", tempDB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Query the database for installed packages
+	rows, err := db.Query(`
+		SELECT name, version, path 
+		FROM formula_versions 
+		WHERE installed = 1
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query database: %v", err)
+	}
+	defer rows.Close()
+
+	var results []map[string]string
+	for rows.Next() {
+		var name, version, path sql.NullString
+		err := rows.Scan(&name, &version, &path)
+		if err != nil {
+			log.Printf("Warning: failed to scan row: %v", err)
+			continue
+		}
+
+		packageName := ""
+		if name.Valid {
+			packageName = name.String
+		}
+
+		packageVersion := ""
+		if version.Valid {
+			packageVersion = version.String
+		}
+
+		installPath := ""
+		if path.Valid {
+			installPath = path.String
+		} else {
+			// Fallback: construct path from Homebrew prefix
+			installPath = filepath.Join(brewPath, "opt", packageName)
+		}
+
+		if packageName != "" {
+			results = append(results, map[string]string{
+				"package_name": packageName,
+				"version":      packageVersion,
+				"install_path": installPath,
+			})
+		}
+	}
+
+	return results, nil
+}
+
+func copyDatabase(srcPath string) (string, error) {
+	// Create temporary file
+	tempFile, err := os.CreateTemp("", "homebrew_db_*.db")
+	if err != nil {
+		return "", err
+	}
+	tempPath := tempFile.Name()
+	tempFile.Close()
+
+	// Copy the database file
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		os.Remove(tempPath)
+		return "", err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(tempPath)
+	if err != nil {
+		os.Remove(tempPath)
+		return "", err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		os.Remove(tempPath)
+		return "", err
+	}
+
+	return tempPath, nil
 }
