@@ -303,24 +303,24 @@ func readBrewCommands(brewPath string) ([]map[string]string, error) {
 		return nil, fmt.Errorf("brew list command failed: %v", err)
 	}
 
-	// Get versions for all packages at once
+	// Try to get versions using brew list --versions first
+	versionMap := make(map[string]string)
 	versionCmd := exec.Command(brewBinary, "list", "--versions")
 	versionCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1")
-	versionOutput, err := versionCmd.Output()
+	versionOutput, err := versionCmd.CombinedOutput()
 	if err != nil {
-		log.Printf("brew list --versions failed: %v", err)
-		// Continue without versions
-		versionOutput = []byte("")
-	}
-
-	// Parse versions into a map
-	versionMap := make(map[string]string)
-	scanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			versionMap[parts[0]] = parts[1]
+		log.Printf("brew list --versions failed: %v, output: %s", err, string(versionOutput))
+		// Fallback: try to get versions from package directories
+		versionMap = getVersionsFromDirectories(brewPath, strings.Fields(string(output)))
+	} else {
+		// Parse versions from command output
+		scanner := bufio.NewScanner(strings.NewReader(string(versionOutput)))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				versionMap[parts[0]] = parts[1]
+			}
 		}
 	}
 
@@ -346,4 +346,48 @@ func readBrewCommands(brewPath string) ([]map[string]string, error) {
 	}
 
 	return results, nil
+}
+
+func getVersionsFromDirectories(brewPath string, packageNames []string) map[string]string {
+	versionMap := make(map[string]string)
+
+	for _, packageName := range packageNames {
+		// Try to read version from package directory
+		packagePath := filepath.Join(brewPath, "opt", packageName)
+
+		// Check if there's a version file
+		versionFile := filepath.Join(packagePath, "VERSION")
+		if content, err := os.ReadFile(versionFile); err == nil {
+			version := strings.TrimSpace(string(content))
+			if version != "" {
+				versionMap[packageName] = version
+				continue
+			}
+		}
+
+		// Check if there's a .version file
+		versionFile = filepath.Join(packagePath, ".version")
+		if content, err := os.ReadFile(versionFile); err == nil {
+			version := strings.TrimSpace(string(content))
+			if version != "" {
+				versionMap[packageName] = version
+				continue
+			}
+		}
+
+		// Try to extract version from symlink target
+		if linkTarget, err := os.Readlink(packagePath); err == nil {
+			// Extract version from path like /opt/homebrew/Cellar/package/1.2.3
+			parts := strings.Split(linkTarget, "/")
+			for i, part := range parts {
+				if part == "Cellar" && i+2 < len(parts) {
+					// The version should be the part after the package name
+					versionMap[packageName] = parts[i+2]
+					break
+				}
+			}
+		}
+	}
+
+	return versionMap
 }
