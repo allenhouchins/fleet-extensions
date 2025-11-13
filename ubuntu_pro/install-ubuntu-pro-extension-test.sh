@@ -209,8 +209,8 @@ download_from_branch() {
     temp_file=$(mktemp)
 
     # Construct raw GitHub URL for branch
-    # Format: https://github.com/USER/REPO/raw/BRANCH/path/to/file
-    local download_url="https://github.com/$GITHUB_USER/$GITHUB_REPO/raw/$GITHUB_BRANCH/ubuntu_pro/$EXTENSION_NAME"
+    # Format: https://raw.githubusercontent.com/USER/REPO/BRANCH/path/to/file
+    local download_url="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/ubuntu_pro/$EXTENSION_NAME"
 
     log "Download URL: $download_url"
     log "Downloading..."
