@@ -87,16 +87,24 @@ func UbuntuProColumns() []table.ColumnDefinition {
 
 // UbuntuProGenerate generates the data for the ubuntu_pro_status table
 func UbuntuProGenerate(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	// Check if pro command exists
-	if _, err := exec.LookPath("pro"); err != nil {
-		return []map[string]string{{
-			"attached": "0",
-			"error":    "pro command not found - ubuntu-advantage-tools not installed",
-		}}, nil
+	// Use full path to pro command to avoid PATH issues when running under osquery
+	proPath := "/usr/bin/pro"
+
+	// Check if pro command exists at expected location
+	if _, err := os.Stat(proPath); err != nil {
+		// Fallback: try to find it in PATH
+		if foundPath, lookErr := exec.LookPath("pro"); lookErr == nil {
+			proPath = foundPath
+		} else {
+			return []map[string]string{{
+				"attached": "0",
+				"error":    "pro command not found - ubuntu-advantage-tools not installed",
+			}}, nil
+		}
 	}
 
 	// Execute `pro status --format json`
-	cmd := exec.CommandContext(ctx, "pro", "status", "--format", "json")
+	cmd := exec.CommandContext(ctx, proPath, "status", "--format", "json")
 	output, err := cmd.Output()
 	if err != nil {
 		return []map[string]string{{
