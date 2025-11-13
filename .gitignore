@@ -1,1 +1,6 @@
 .DS_Store
+
+# Internal documentation (local reference only)
+GIT-WORKFLOW.md
+ubuntu_pro/INTEGRATION.md
+ubuntu_pro/TESTING.md
