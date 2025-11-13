@@ -19,6 +19,7 @@ EXTENSION_DIR="/var/fleetd/extensions"
 OSQUERY_DIR="/etc/osquery"
 EXTENSIONS_LOAD_FILE="$OSQUERY_DIR/extensions.load"
 BACKUP_PATH=""
+AUTO_INSTALL_DEPS=${AUTO_INSTALL_DEPS:-true}
 
 echo "============================================"
 echo "Ubuntu Pro Extension Installer (TEST MODE)"
@@ -130,11 +131,37 @@ check_prerequisites() {
         log "curl is already installed"
     fi
 
-    # Check if ubuntu-advantage-tools is installed (optional but recommended)
+    # Check if ubuntu-advantage-tools is installed
     if ! command -v pro &> /dev/null; then
-        log "WARNING: ubuntu-advantage-tools not found"
-        log "The extension will not work properly without it"
-        log "Install with: sudo apt install ubuntu-advantage-tools"
+        if [[ "$AUTO_INSTALL_DEPS" == "true" ]]; then
+            log "ubuntu-advantage-tools not found, installing..."
+            log "Updating package lists..."
+
+            if apt update; then
+                log "Package lists updated successfully"
+            else
+                log "Warning: Failed to update package lists, proceeding with installation attempt"
+            fi
+
+            log "Installing ubuntu-advantage-tools..."
+            if apt install -y ubuntu-advantage-tools; then
+                log "ubuntu-advantage-tools installed successfully"
+            else
+                log "Error: Failed to install ubuntu-advantage-tools"
+                log "Please install manually: sudo apt update && sudo apt install ubuntu-advantage-tools"
+                exit 1
+            fi
+
+            if ! command -v pro &> /dev/null; then
+                log "Error: ubuntu-advantage-tools installation appears to have failed"
+                exit 1
+            fi
+        else
+            log "ERROR: ubuntu-advantage-tools not found and AUTO_INSTALL_DEPS=false"
+            log "The extension requires the 'pro' command to function"
+            log "Install with: sudo apt update && sudo apt install ubuntu-advantage-tools"
+            exit 1
+        fi
     else
         log "ubuntu-advantage-tools is installed"
     fi
