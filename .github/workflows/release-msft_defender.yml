@@ -30,7 +30,9 @@ jobs:
         with:
           name: msft_defender-binaries
           path: |
-            msft_defender/msft_defender.ext
+            msft_defender/mdatp_extension-arm64.ext
+            msft_defender/mdatp_extension-x86_64.ext
+            msft_defender/mdatp_extension.ext
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
