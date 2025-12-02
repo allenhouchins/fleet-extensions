@@ -6,7 +6,7 @@ A Go-based osquery extension that provides access to Microsoft Defender health u
 
 This extension creates an `mdatp_status` table that contains comprehensive information about Microsoft Defender for Endpoint's current status, configuration, and health on macOS systems.
 
-mdatp = Microsoft Defender Advanced Threat Protection. More information can be found on [Microsoft's documention](https://learn.microsoft.com/en-us/defender-endpoint/health-status)
+mdatp = Microsoft Defender Advanced Threat Protection. More information can be found on [Microsoft's documention.](https://learn.microsoft.com/en-us/defender-endpoint/health-status)
 
 ## Table Schema
 

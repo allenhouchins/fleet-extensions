@@ -12,6 +12,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [system_profiler](system_profiler/README.md)       | macOS system profiler information as a native table      | macOS               |
 | [nuget_packages](nuget_packages/README.md)         | NuGet package search results as a native osquery table   | macOS, Windows      |
 | [brew_list](brew_list/README.md)                   | Homebrew package information as a native osquery table   | macOS, Linux        |
+| [msft_defender](msft_defender/README.md)           | Access Microsoft Defender health using the `mdatp` binary | macOS |
 
 ## Extension Details
 
@@ -48,6 +49,12 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Binaries:** `brew_list.ext`
 - **Tables:** `brew_list`
 
+### [msft_defender](msft_defender/README.md)
+- **Description:** Creates an `mdatp_status` table that contains comprehensive information about Microsoft Defender for Endpoint's current status, configuration, and health on macOS systems.
+- **Platforms:** macOS (Intel and Apple Silicon)
+- **Binaries:** `mdatp_extension-arm64.ext`, `mdatp_extension-x86_64.ext`, `mdatp_extension.ext`
+- **Tables:** `mdatp_status`
+
 ## Automated Builds
 
 This repository uses GitHub Actions to automatically build and release extensions when changes are pushed to the `main` branch. Each extension has its own workflow that:
@@ -69,7 +76,7 @@ Each extension is self-contained in its own directory. To build an extension:
    make deps
    ```
 3. Build the extension:
-   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`):
+   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mdatp_status`):
      ```bash
      make build
      ```
