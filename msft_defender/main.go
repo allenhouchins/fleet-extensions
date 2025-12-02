@@ -20,8 +20,9 @@ var (
 	timeout  = flag.Int("timeout", 3, "Seconds to wait for autoloaded extensions")
 	interval = flag.Int("interval", 3, "Seconds delay between connectivity checks")
 
-	// Compiled regex for parsing mdatp health output - function then normalizes the key (lowercase, spaces to underscores) and stores it in the result map.
-	healthOutputRegex = regexp.MustCompile(`^([^:]+?)\s*:\s*(.*)$`)
+	// Compiled regex for parsing mdatp health output - handles "key : value" format with variable whitespace
+	// Format: "key                                     : value" (key has trailing spaces, colon, then value)
+	healthOutputRegex = regexp.MustCompile(`^([^:]+?)\s*:\s*(.+)$`)
 )
 
 func main() {
@@ -110,7 +111,7 @@ func generateMDATPStatus(ctx context.Context, queryContext table.QueryContext) (
 		}, nil
 	}
 
-	output, err := executeMDATPCommand(mdatpPath, "health")
+	output, err := executeMDATPCommand(mdatpPath)
 	result := parseMDATPHealthOutput(output)
 
 	if err != nil {
@@ -136,14 +137,9 @@ func findMDATPPath() (string, error) {
 	return "", fmt.Errorf("mdatp binary not found at %s or %s", possiblePaths[0], possiblePaths[1])
 }
 
-// executeMDATPCommand calls binary with 'heath' flag
-func executeMDATPCommand(mdatpPath, command string) (string, error) {
-	args := strings.Fields(command)
-	if len(args) == 0 {
-		args = []string{"health"}
-	}
-
-	cmd := exec.Command(mdatpPath, args...)
+// executeMDATPCommand calls mdatp with the health flag
+func executeMDATPCommand(mdatpPath string) (string, error) {
+	cmd := exec.Command(mdatpPath, "health")
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -162,7 +158,9 @@ func parseMDATPHealthOutput(output string) map[string]string {
 
 		matches := healthOutputRegex.FindStringSubmatch(line)
 		if len(matches) == 3 {
+			// Extract and trim the key (removes trailing spaces from keys like "healthy                                     ")
 			key := strings.TrimSpace(matches[1])
+			// Extract and trim the value
 			value := strings.TrimSpace(matches[2])
 
 			// Remove surrounding quotes if present - cleans up the values returned
@@ -173,7 +171,10 @@ func parseMDATPHealthOutput(output string) map[string]string {
 			// Convert key to lowercase and replace spaces with underscores - standardizes the keys
 			key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 
-			result[key] = value
+			// Only store if we successfully extracted both key and value
+			if key != "" && value != "" {
+				result[key] = value
+			}
 		}
 	}
 
