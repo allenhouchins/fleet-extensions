@@ -46,14 +46,14 @@ func collectSantaRules() ([]RuleEntry, error) {
 	}
 	defer db.Close()
 
-	// Query the rules table with all available columns
+	// Query the execution_rules table with all available columns
 	rows, err := db.Query(`
-		SELECT 
+		SELECT
 			identifier,
 			state,
 			type,
 			custommsg
-		FROM rules
+		FROM execution_rules
 		ORDER BY identifier
 	`)
 	if err != nil {
@@ -112,30 +112,46 @@ func collectSantaRules() ([]RuleEntry, error) {
 }
 
 // getRuleTypeFromInt converts integer type value to RuleType
+// Values from SNTCommonEnums.h in Santa source
 func getRuleTypeFromInt(typeInt int) RuleType {
 	switch typeInt {
+	case 500:
+		return RuleTypeCDHash
 	case 1000:
 		return RuleTypeBinary
 	case 2000:
-		return RuleTypeCertificate
-	case 3000:
-		return RuleTypeTeamID
-	case 4000:
 		return RuleTypeSigningID
-	case 5000:
-		return RuleTypeCDHash
+	case 3000:
+		return RuleTypeCertificate
+	case 4000:
+		return RuleTypeTeamID
 	default:
 		return RuleTypeUnknown
 	}
 }
 
 // getRuleStateFromInt converts integer state value to RuleState
+// Values from SNTCommonEnums.h in Santa source
 func getRuleStateFromInt(stateInt int) RuleState {
 	switch stateInt {
 	case 1:
 		return RuleStateAllowlist
 	case 2:
 		return RuleStateBlocklist
+	case 3:
+		return RuleStateSilentBlock
+	case 4:
+		return RuleStateRemove
+	case 5:
+		return RuleStateAllowCompiler
+	case 6:
+		return RuleStateAllowTransitive
+	case 7:
+		return RuleStateAllowLocalBinary
+	case 8:
+		return RuleStateAllowLocalSigningID
+	case 9:
+		return RuleStateCEL
 	default:
 		return RuleStateUnknown
 	}

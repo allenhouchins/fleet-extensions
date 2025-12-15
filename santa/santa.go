@@ -33,11 +33,19 @@ const (
 )
 
 // RuleState represents the state of a Santa rule
+// Values from SNTCommonEnums.h in Santa source
 type RuleState int
 
 const (
 	RuleStateAllowlist RuleState = iota
 	RuleStateBlocklist
+	RuleStateSilentBlock
+	RuleStateRemove
+	RuleStateAllowCompiler
+	RuleStateAllowTransitive
+	RuleStateAllowLocalBinary
+	RuleStateAllowLocalSigningID
+	RuleStateCEL
 	RuleStateUnknown
 )
 
@@ -87,9 +95,23 @@ func GetRuleTypeName(ruleType RuleType) string {
 func GetRuleStateName(ruleState RuleState) string {
 	switch ruleState {
 	case RuleStateAllowlist:
-		return "Allowlist"
+		return "Allow"
 	case RuleStateBlocklist:
-		return "Blocklist"
+		return "Block"
+	case RuleStateSilentBlock:
+		return "SilentBlock"
+	case RuleStateRemove:
+		return "Remove"
+	case RuleStateAllowCompiler:
+		return "AllowCompiler"
+	case RuleStateAllowTransitive:
+		return "AllowTransitive"
+	case RuleStateAllowLocalBinary:
+		return "AllowLocalBinary"
+	case RuleStateAllowLocalSigningID:
+		return "AllowLocalSigningID"
+	case RuleStateCEL:
+		return "CEL"
 	default:
 		return "Unknown"
 	}
@@ -118,10 +140,24 @@ func GetTypeFromRuleName(name string) RuleType {
 func GetStateFromRuleName(name string) RuleState {
 	name = strings.ToLower(name)
 	switch name {
-	case "allowlist", "whitelist":
+	case "allow", "allowlist", "whitelist":
 		return RuleStateAllowlist
-	case "blocklist", "blacklist":
+	case "block", "blocklist", "blacklist":
 		return RuleStateBlocklist
+	case "silentblock", "silent_block":
+		return RuleStateSilentBlock
+	case "remove":
+		return RuleStateRemove
+	case "allowcompiler", "allow_compiler", "compiler":
+		return RuleStateAllowCompiler
+	case "allowtransitive", "allow_transitive", "transitive":
+		return RuleStateAllowTransitive
+	case "allowlocalbinary", "allow_local_binary":
+		return RuleStateAllowLocalBinary
+	case "allowlocalsigningid", "allow_local_signingid":
+		return RuleStateAllowLocalSigningID
+	case "cel":
+		return RuleStateCEL
 	default:
 		return RuleStateUnknown
 	}
