@@ -105,21 +105,20 @@ func generateSantaRules(ctx context.Context, queryContext table.QueryContext) ([
 
 // generateSantaAllowed generates data for the santa_allowed table
 func generateSantaAllowed(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	entries, err := scrapeSantaLog(DecisionAllowed)
+	entries, err := scrapeSantaLog(ctx, DecisionAllowed)
 	if err != nil {
 		// Gracefully return an empty result if log cannot be scraped
 		return []map[string]string{}, nil
 	}
 
-	var results []map[string]string
+	results := make([]map[string]string, 0, len(entries))
 	for _, entry := range entries {
-		row := map[string]string{
+		results = append(results, map[string]string{
 			"timestamp":   entry.Timestamp,
 			"application": entry.Application,
 			"reason":      entry.Reason,
 			"sha256":      entry.SHA256,
-		}
-		results = append(results, row)
+		})
 	}
 
 	return results, nil
@@ -127,21 +126,20 @@ func generateSantaAllowed(ctx context.Context, queryContext table.QueryContext) 
 
 // generateSantaDenied generates data for the santa_denied table
 func generateSantaDenied(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	entries, err := scrapeSantaLog(DecisionDenied)
+	entries, err := scrapeSantaLog(ctx, DecisionDenied)
 	if err != nil {
 		// Gracefully return an empty result if log cannot be scraped
 		return []map[string]string{}, nil
 	}
 
-	var results []map[string]string
+	results := make([]map[string]string, 0, len(entries))
 	for _, entry := range entries {
-		row := map[string]string{
+		results = append(results, map[string]string{
 			"timestamp":   entry.Timestamp,
 			"application": entry.Application,
 			"reason":      entry.Reason,
 			"sha256":      entry.SHA256,
-		}
-		results = append(results, row)
+		})
 	}
 
 	return results, nil

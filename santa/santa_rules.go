@@ -1,141 +1,143 @@
 package main
 
 import (
-	"database/sql"
+	"encoding/json"
 	"fmt"
-	"io"
 	"os"
+	"os/exec"
 	"strings"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
-// collectSantaRules reads Santa rules from the database
+// santaRulesExport represents the JSON structure from santactl rule --export
+type santaRulesExport struct {
+	Rules []santaRuleJSON `json:"rules"`
+}
+
+type santaRuleJSON struct {
+	Policy     string `json:"policy"`
+	RuleType   string `json:"rule_type"`
+	Identifier string `json:"identifier"`
+	CustomMsg  string `json:"custom_msg"`
+	CustomURL  string `json:"custom_url"`
+	Comment    string `json:"comment"`
+	CELExpr    string `json:"cel_expr"`
+}
+
+// collectSantaRules reads Santa rules using santactl rule --export
 func collectSantaRules() ([]RuleEntry, error) {
-	paths := GetDefaultPaths()
-
-	// Check if Santa database exists
-	if _, err := os.Stat(paths.DatabasePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Santa database not found at %s", paths.DatabasePath)
-	}
-
-	// Copy the database to a temporary location to avoid locking issues
-	srcFile, err := os.Open(paths.DatabasePath)
+	// Create a temporary file for the export
+	tmpFile, err := os.CreateTemp("", "santa_rules_*.json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to open Santa database: %v", err)
+		return nil, fmt.Errorf("failed to create temp file: %v", err)
 	}
-	defer srcFile.Close()
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
 
-	dstFile, err := os.Create(paths.TempDBPath)
+	// Run santactl rule --export
+	cmd := exec.Command("santactl", "rule", "--export", tmpPath)
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to export rules: %v", err)
+	}
+
+	// Read and parse the JSON file
+	data, err := os.ReadFile(tmpPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temporary database: %v", err)
-	}
-	defer dstFile.Close()
-	defer os.Remove(paths.TempDBPath) // Clean up temp file
-
-	_, err = io.Copy(dstFile, srcFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to copy database: %v", err)
-	}
-	dstFile.Close()
-
-	// Open the temporary database
-	db, err := sql.Open("sqlite3", paths.TempDBPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temporary database: %v", err)
-	}
-	defer db.Close()
-
-	// Query the rules table with all available columns
-	rows, err := db.Query(`
-		SELECT 
-			identifier,
-			state,
-			type,
-			custommsg
-		FROM rules
-		ORDER BY identifier
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query rules: %v", err)
-	}
-	defer rows.Close()
-
-	var rules []RuleEntry
-	for rows.Next() {
-		var identifier, customMsg sql.NullString
-		var stateInt, typeInt sql.NullInt64
-
-		err := rows.Scan(&identifier, &stateInt, &typeInt, &customMsg)
-		if err != nil {
-			fmt.Printf("Warning: failed to scan rule row: %v\n", err)
-			continue
-		}
-
-		if !identifier.Valid {
-			continue
-		}
-
-		rule := RuleEntry{
-			Identifier: identifier.String,
-		}
-
-		// Parse rule type from integer
-		if typeInt.Valid {
-			rule.Type = getRuleTypeFromInt(int(typeInt.Int64))
-		} else {
-			rule.Type = RuleTypeUnknown
-		}
-
-		// Parse rule state from integer
-		if stateInt.Valid {
-			rule.State = getRuleStateFromInt(int(stateInt.Int64))
-		} else {
-			rule.State = RuleStateUnknown
-		}
-
-		// Parse custom message
-		if customMsg.Valid {
-			rule.CustomMessage = customMsg.String
-		} else {
-			rule.CustomMessage = ""
-		}
-
-		rules = append(rules, rule)
+		return nil, fmt.Errorf("failed to read exported rules: %v", err)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rules: %v", err)
+	var export santaRulesExport
+	if err := json.Unmarshal(data, &export); err != nil {
+		return nil, fmt.Errorf("failed to parse rules JSON: %v", err)
+	}
+
+	// Convert to RuleEntry slice
+	rules := make([]RuleEntry, 0, len(export.Rules))
+	for _, r := range export.Rules {
+		rules = append(rules, RuleEntry{
+			Identifier:    r.Identifier,
+			Type:          getRuleTypeFromExport(r.RuleType),
+			State:         getRuleStateFromExport(r.Policy),
+			CustomMessage: r.CustomMsg,
+		})
 	}
 
 	return rules, nil
 }
 
-// getRuleTypeFromInt converts integer type value to RuleType
-func getRuleTypeFromInt(typeInt int) RuleType {
-	switch typeInt {
-	case 1000:
+// getRuleTypeFromExport converts export rule_type string to RuleType
+func getRuleTypeFromExport(ruleType string) RuleType {
+	switch strings.ToUpper(ruleType) {
+	case "BINARY":
 		return RuleTypeBinary
-	case 2000:
+	case "CERTIFICATE":
 		return RuleTypeCertificate
-	case 3000:
+	case "TEAMID":
 		return RuleTypeTeamID
-	case 4000:
+	case "SIGNINGID":
 		return RuleTypeSigningID
-	case 5000:
+	case "CDHASH":
 		return RuleTypeCDHash
 	default:
 		return RuleTypeUnknown
 	}
 }
 
+// getRuleStateFromExport converts export policy string to RuleState
+func getRuleStateFromExport(policy string) RuleState {
+	switch strings.ToUpper(policy) {
+	case "ALLOWLIST", "ALLOWLIST_COMPILER":
+		return RuleStateAllowlist
+	case "BLOCKLIST":
+		return RuleStateBlocklist
+	case "SILENT_BLOCKLIST":
+		return RuleStateSilentBlock
+	default:
+		return RuleStateUnknown
+	}
+}
+
+// getRuleTypeFromInt converts integer type value to RuleType
+// Values from SNTCommonEnums.h in Santa source
+func getRuleTypeFromInt(typeInt int) RuleType {
+	switch typeInt {
+	case 500:
+		return RuleTypeCDHash
+	case 1000:
+		return RuleTypeBinary
+	case 2000:
+		return RuleTypeSigningID
+	case 3000:
+		return RuleTypeCertificate
+	case 4000:
+		return RuleTypeTeamID
+	default:
+		return RuleTypeUnknown
+	}
+}
+
 // getRuleStateFromInt converts integer state value to RuleState
+// Values from SNTCommonEnums.h in Santa source
 func getRuleStateFromInt(stateInt int) RuleState {
 	switch stateInt {
 	case 1:
 		return RuleStateAllowlist
 	case 2:
 		return RuleStateBlocklist
+	case 3:
+		return RuleStateSilentBlock
+	case 4:
+		return RuleStateRemove
+	case 5:
+		return RuleStateAllowCompiler
+	case 6:
+		return RuleStateAllowTransitive
+	case 7:
+		return RuleStateAllowLocalBinary
+	case 8:
+		return RuleStateAllowLocalSigningID
+	case 9:
+		return RuleStateCEL
 	default:
 		return RuleStateUnknown
 	}
