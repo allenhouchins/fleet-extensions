@@ -12,7 +12,8 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [system_profiler](system_profiler/README.md)       | macOS system profiler information as a native table      | macOS               |
 | [nuget_packages](nuget_packages/README.md)         | NuGet package search results as a native osquery table   | macOS, Windows      |
 | [brew_list](brew_list/README.md)                   | Homebrew package information as a native osquery table   | macOS, Linux        |
-| [msft_defender](msft_defender/README.md)           | Access Microsoft Defender health using the `mdatp` binary | macOS |
+| [msft_defender](msft_defender/README.md)           | Access Microsoft Defender health using the `mdatp` binary | macOS               |
+| [mise](mise/README.md)                             | Mise-installed tools and versions as a native osquery table | macOS, Linux     |
 
 ## Extension Details
 
@@ -49,6 +50,12 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Binaries:** `brew_list.ext`
 - **Tables:** `brew_list`
 
+### [mise](mise/README.md)
+- **Description:** Exposes tools installed by the `mise` version manager, including tool name, version, install path, and install time.
+- **Platforms:** macOS (Intel and Apple Silicon), Linux
+- **Binaries:** `mise-x86_64.ext`, `mise-arm64.ext`, `mise.ext`
+- **Tables:** `mise_installs`
+
 ### [msft_defender](msft_defender/README.md)
 - **Description:** Creates an `mdatp_status` table that contains comprehensive information about Microsoft Defender for Endpoint's current status, configuration, and health on macOS systems.
 - **Platforms:** macOS (Intel and Apple Silicon)
@@ -76,7 +83,7 @@ Each extension is self-contained in its own directory. To build an extension:
    make deps
    ```
 3. Build the extension:
-   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mdatp_status`):
+   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`):
      ```bash
      make build
      ```
