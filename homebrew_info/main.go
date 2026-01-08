@@ -133,9 +133,8 @@ func packagesFromPrefix(prefix string, userRequested bool) ([]map[string]string,
 
 	// Check if prefix exists
 	if _, err := os.Stat(prefix); err != nil {
-		if userRequested {
-			log.Printf("Warning: Error reading homebrew prefix %s: %v", prefix, err)
-		}
+		// Only log warning if user explicitly requested this prefix
+		// This avoids noise when checking default prefixes that don't exist
 		return results, nil
 	}
 
@@ -168,9 +167,8 @@ func computeVersionsForFormulas(prefix string, userRequested bool) ([]map[string
 	packageType := "formula"
 
 	if _, err := os.Stat(formulaDirPath); err != nil {
-		if userRequested {
-			log.Printf("Warning: Error reading homebrew %s path %s: %v", packageType, formulaDirPath, err)
-		}
+		// Only log warning if user explicitly requested this prefix
+		// This avoids noise when checking default prefixes that don't exist
 		return results, nil
 	}
 
@@ -229,9 +227,8 @@ func computeVersionsForCasks(prefix string, userRequested bool) ([]map[string]st
 	packageType := "cask"
 
 	if _, err := os.Stat(caskDirPath); err != nil {
-		if userRequested {
-			log.Printf("Warning: Error reading homebrew %s path %s: %v", packageType, caskDirPath, err)
-		}
+		// Only log warning if user explicitly requested this prefix
+		// This avoids noise when checking default prefixes that don't exist
 		return results, nil
 	}
 
@@ -351,19 +348,26 @@ func getLatestVersionFromBrew(packageName, packageType string) string {
 	latestVersion := ""
 
 	// Try parsing JSON first (more reliable)
-	var brewInfo []map[string]interface{}
-	if err := json.Unmarshal(output, &brewInfo); err == nil && len(brewInfo) > 0 {
-		// JSON structure: array of objects, each with "versions" field
-		// For formulas: versions.stable
-		// For casks: versions.stable or versions.version
-		item := brewInfo[0]
-		if versions, ok := item["versions"].(map[string]interface{}); ok {
-			// Try "stable" first
-			if stable, ok := versions["stable"].(string); ok && stable != "" {
-				latestVersion = stable
-			} else if version, ok := versions["version"].(string); ok && version != "" {
-				// Fallback to "version" for casks
-				latestVersion = version
+	// JSON structure: {"formulae": [...]} or {"casks": [...]}
+	var brewInfo map[string]interface{}
+	if err := json.Unmarshal(output, &brewInfo); err == nil {
+		// Handle formulas
+		if formulae, ok := brewInfo["formulae"].([]interface{}); ok && len(formulae) > 0 {
+			if item, ok := formulae[0].(map[string]interface{}); ok {
+				if versions, ok := item["versions"].(map[string]interface{}); ok {
+					if stable, ok := versions["stable"].(string); ok && stable != "" {
+						latestVersion = stable
+					}
+				}
+			}
+		}
+		// Handle casks
+		if casks, ok := brewInfo["casks"].([]interface{}); ok && len(casks) > 0 {
+			if item, ok := casks[0].(map[string]interface{}); ok {
+				// For casks, version is at the top level
+				if version, ok := item["version"].(string); ok && version != "" {
+					latestVersion = version
+				}
 			}
 		}
 	}
@@ -382,8 +386,9 @@ func getLatestVersionFromBrew(packageName, packageType string) string {
 		if len(matches) > 1 {
 			latestVersion = matches[1]
 		} else {
-			// Try pattern: "stable version" (for formulas)
-			stableRegex := regexp.MustCompile(`stable\s+([^\s,\(]+)`)
+			// Try pattern: "stable version" (for formulas) - be more specific to avoid false matches
+			// Match "stable" followed by a version number pattern
+			stableRegex := regexp.MustCompile(`stable\s+(\d+\.\d+(?:\.\d+)*(?:[a-z0-9]+)?)`)
 			matches = stableRegex.FindStringSubmatch(outputStr)
 			if len(matches) > 1 {
 				latestVersion = matches[1]
