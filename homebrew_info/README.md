@@ -4,11 +4,11 @@ An osquery extension that provides detailed information about Homebrew packages 
 
 ## Overview
 
-This extension creates a `homebrew_packages` table that contains comprehensive information about all Homebrew packages installed on the system, including package names, versions, installation paths, package types (cask vs formula), prefixes, auto-update settings, and app names (for casks).
+This extension creates a `homebrew_info` table that contains comprehensive information about all Homebrew packages installed on the system, including package names, versions, installation paths, package types (cask vs formula), prefixes, auto-update settings, and app names (for casks).
 
 ## Table Schema
 
-The `homebrew_packages` table has the following columns:
+The `homebrew_info` table has the following columns:
 
 | Column Name | Type | Description |
 |-------------|------|-------------|
@@ -25,44 +25,44 @@ The `homebrew_packages` table has the following columns:
 
 ### List all installed Homebrew packages
 ```sql
-SELECT * FROM homebrew_packages;
+SELECT * FROM homebrew_info;
 ```
 
 ### Find packages in a specific prefix
 ```sql
-SELECT * FROM homebrew_packages WHERE prefix = '/opt/homebrew';
+SELECT * FROM homebrew_info WHERE prefix = '/opt/homebrew';
 ```
 
 ### List only casks with auto-updates enabled
 ```sql
-SELECT name, version, app_name FROM homebrew_packages 
+SELECT name, version, app_name FROM homebrew_info 
 WHERE type = 'cask' AND auto_updates = '1';
 ```
 
 ### List only formulae
 ```sql
-SELECT * FROM homebrew_packages WHERE type = 'formula';
+SELECT * FROM homebrew_info WHERE type = 'formula';
 ```
 
 ### Find a specific package
 ```sql
-SELECT * FROM homebrew_packages WHERE name = 'git';
+SELECT * FROM homebrew_info WHERE name = 'git';
 ```
 
 ### Count packages by type
 ```sql
-SELECT type, COUNT(*) as count FROM homebrew_packages GROUP BY type;
+SELECT type, COUNT(*) as count FROM homebrew_info GROUP BY type;
 ```
 
 ### List all casks with their app names
 ```sql
-SELECT name, version, app_name, prefix FROM homebrew_packages 
+SELECT name, version, app_name, prefix FROM homebrew_info 
 WHERE type = 'cask' AND app_name != '';
 ```
 
 ### Find packages that are out of date
 ```sql
-SELECT name, version, latest_version, type FROM homebrew_packages 
+SELECT name, version, latest_version, type FROM homebrew_info 
 WHERE latest_version != '' AND version != latest_version;
 ```
 
@@ -70,7 +70,7 @@ WHERE latest_version != '' AND version != latest_version;
 ```sql
 SELECT name, version, latest_version, 
        CASE WHEN version != latest_version THEN 'outdated' ELSE 'up to date' END as status
-FROM homebrew_packages 
+FROM homebrew_info 
 WHERE latest_version != '';
 ```
 
@@ -106,18 +106,18 @@ make dev
 
 Then in osqueryi:
 ```sql
-SELECT * FROM homebrew_packages;
+SELECT * FROM homebrew_info;
 ```
 
 ### With Fleet
 1. Build the extension: `make build`
 2. Deploy the `homebrew_info.ext` file to your Fleet-managed hosts
 3. Configure Fleet to load the extension
-4. Run queries against the `homebrew_packages` table
+4. Run queries against the `homebrew_info` table
 
 ## How It Works
 
-The extension implements the same logic as the osquery C++ `homebrew_packages` table:
+The extension implements the same logic as the osquery C++ `homebrew_packages` table (but registers as `homebrew_info` to avoid conflicts):
 
 1. **Prefix Detection**: Automatically checks both `/opt/homebrew` (Apple Silicon) and `/usr/local` (Intel Mac) prefixes
 2. **Formula Scanning**: Reads from the `Cellar` directory to discover installed formulas and their versions

@@ -68,7 +68,7 @@ func main() {
 	}
 
 	server.RegisterPlugin(table.NewPlugin(
-		"homebrew_packages",
+		"homebrew_info",
 		homebrewPackagesColumns(),
 		generateHomebrewPackages,
 	))
