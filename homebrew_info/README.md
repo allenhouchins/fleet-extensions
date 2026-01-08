@@ -16,10 +16,10 @@ The `homebrew_info` table has the following columns:
 | path | TEXT | Full path to the package directory (Cellar for formulas, Caskroom for casks) |
 | version | TEXT | Installed version of the package |
 | type | TEXT | Package type: "formula" or "cask" |
-| prefix | TEXT | Homebrew prefix where the package is installed (e.g., "/opt/homebrew" or "/usr/local") |
 | auto_updates | TEXT | For casks: "1" if auto-updates are enabled, "0" otherwise. Empty for formulas. |
 | app_name | TEXT | For casks: Name of the installed application (e.g., "iTerm.app"). Empty for formulas. |
 | latest_version | TEXT | Latest available version from Homebrew (not the installed version). Empty if unavailable. |
+| is_latest | TEXT | "yes" if the installed version matches the latest available version, "no" otherwise. Empty if latest_version is unavailable. |
 
 ## Example Queries
 
@@ -28,10 +28,6 @@ The `homebrew_info` table has the following columns:
 SELECT * FROM homebrew_info;
 ```
 
-### Find packages in a specific prefix
-```sql
-SELECT * FROM homebrew_info WHERE prefix = '/opt/homebrew';
-```
 
 ### List only casks with auto-updates enabled
 ```sql
@@ -63,13 +59,18 @@ WHERE type = 'cask' AND app_name != '';
 ### Find packages that are out of date
 ```sql
 SELECT name, version, latest_version, type FROM homebrew_info 
-WHERE latest_version != '' AND version != latest_version;
+WHERE is_latest = 'no' AND latest_version != '';
+```
+
+### List packages that are up to date
+```sql
+SELECT name, version, latest_version FROM homebrew_info 
+WHERE is_latest = 'yes';
 ```
 
 ### List packages with their installed and latest versions
 ```sql
-SELECT name, version, latest_version, 
-       CASE WHEN version != latest_version THEN 'outdated' ELSE 'up to date' END as status
+SELECT name, version, latest_version, is_latest
 FROM homebrew_info 
 WHERE latest_version != '';
 ```

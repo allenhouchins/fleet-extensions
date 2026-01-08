@@ -84,35 +84,19 @@ func homebrewPackagesColumns() []table.ColumnDefinition {
 		table.TextColumn("path"),
 		table.TextColumn("version"),
 		table.TextColumn("type"),
-		table.TextColumn("prefix"),
 		table.TextColumn("auto_updates"),
 		table.TextColumn("app_name"),
 		table.TextColumn("latest_version"),
+		table.TextColumn("is_latest"),
 	}
 }
 
 func generateHomebrewPackages(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	var results []map[string]string
 
-	// Check if prefix constraint is provided
-	var prefixesToCheck []string
+	// Use default prefixes (prefix column removed, but we still need to check prefixes internally)
+	var prefixesToCheck []string = homebrewPrefixes
 	userRequested := false
-
-	if constraintList, ok := queryContext.Constraints["prefix"]; ok {
-		// User provided a constraint on prefix column
-		userRequested = true
-		for _, constraint := range constraintList.Constraints {
-			// Check for equals operator (OperatorEquals = 2)
-			if constraint.Operator == 2 { // OperatorEquals
-				prefixesToCheck = append(prefixesToCheck, constraint.Expression)
-			}
-		}
-	}
-
-	// If no prefixes were specified in constraints, use default prefixes
-	if len(prefixesToCheck) == 0 {
-		prefixesToCheck = homebrewPrefixes
-	}
 
 	// Process each prefix
 	for _, prefix := range prefixesToCheck {
@@ -205,15 +189,21 @@ func computeVersionsForFormulas(prefix string, userRequested bool) ([]map[string
 		latestVersion := getLatestVersionFromBrew(formulaName, packageType)
 
 		for _, version := range versions {
+			// Determine if this version is the latest
+			isLatest := "no"
+			if latestVersion != "" && version == latestVersion {
+				isLatest = "yes"
+			}
+
 			results = append(results, map[string]string{
 				"name":           formulaName,
 				"path":           formulaPath,
 				"version":        version,
 				"type":           packageType,
-				"prefix":         prefix,
 				"auto_updates":   "",
 				"app_name":       "",
 				"latest_version": latestVersion,
+				"is_latest":      isLatest,
 			})
 		}
 	}
@@ -274,15 +264,21 @@ func computeVersionsForCasks(prefix string, userRequested bool) ([]map[string]st
 				autoUpdatesStr = "1"
 			}
 
+			// Determine if this version is the latest
+			isLatest := "no"
+			if latestVersion != "" && version == latestVersion {
+				isLatest = "yes"
+			}
+
 			results = append(results, map[string]string{
 				"name":           caskName,
 				"path":           caskPath,
 				"version":        version,
 				"type":           packageType,
-				"prefix":         prefix,
 				"auto_updates":   autoUpdatesStr,
 				"app_name":       appName,
 				"latest_version": latestVersion,
+				"is_latest":      isLatest,
 			})
 		}
 	}
