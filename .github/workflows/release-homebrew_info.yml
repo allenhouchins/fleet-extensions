@@ -23,15 +23,16 @@ jobs:
         run: |
           cd homebrew_info
           make deps
-          make build-all
+          make build
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: homebrew_info-binaries
           path: |
-            homebrew_info/homebrew_info.ext-amd64
-            homebrew_info/homebrew_info.ext-arm64
+            homebrew_info/homebrew_info-x86_64.ext
+            homebrew_info/homebrew_info-arm64.ext
+            homebrew_info/homebrew_info.ext
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -53,8 +54,9 @@ jobs:
 
             See attached assets for binaries.
           files: |
-            homebrew_info/homebrew_info.ext-amd64
-            homebrew_info/homebrew_info.ext-arm64
+            homebrew_info/homebrew_info-x86_64.ext
+            homebrew_info/homebrew_info-arm64.ext
+            homebrew_info/homebrew_info.ext
           draft: false
           prerelease: false
 
