@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/micromdm/plist"
 	"github.com/osquery/osquery-go"
 	"github.com/osquery/osquery-go/plugin/table"
-	"howett.net/plist"
 )
 
 var (
@@ -114,8 +114,7 @@ func readLocalNetworkPermissions() ([]LocalNetworkPermission, error) {
 
 	// First, unmarshal into a generic map to handle the NSKeyedArchiver structure
 	var archive map[string]interface{}
-	_, err = plist.Unmarshal(data, &archive)
-	if err != nil {
+	if err = plist.Unmarshal(data, &archive); err != nil {
 		return nil, err
 	}
 
