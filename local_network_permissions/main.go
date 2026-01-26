@@ -12,6 +12,7 @@ import (
 	"github.com/micromdm/plist"
 	"github.com/osquery/osquery-go"
 	"github.com/osquery/osquery-go/plugin/table"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -67,10 +68,13 @@ func columns() []table.ColumnDefinition {
 }
 
 func generate(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	permissions, err := readLocalNetworkPermissions()
+	permissions, err := readLocalNetworkPermissions(networkExtensionPlistPath)
 	if err != nil {
-		// Return empty result on error (graceful degradation)
-		return []map[string]string{}, nil
+		// File not found is expected when no apps have requested local network permissions
+		if os.IsNotExist(err) {
+			return []map[string]string{}, nil
+		}
+		return nil, errors.Wrap(err, "read local network permissions")
 	}
 
 	results := make([]map[string]string, 0, len(permissions))
@@ -106,8 +110,8 @@ type NSKeyedArchive struct {
 	Version  int           `plist:"$version"`
 }
 
-func readLocalNetworkPermissions() ([]LocalNetworkPermission, error) {
-	data, err := os.ReadFile(networkExtensionPlistPath)
+func readLocalNetworkPermissions(plistPath string) ([]LocalNetworkPermission, error) {
+	data, err := os.ReadFile(plistPath)
 	if err != nil {
 		return nil, err
 	}
