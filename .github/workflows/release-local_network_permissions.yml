@@ -1,0 +1,64 @@
+name: Release local_network_permissions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'local_network_permissions/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          cd local_network_permissions
+          make deps
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: local_network_permissions-binaries
+          path: |
+            local_network_permissions/local_network_permissions-x86_64.ext
+            local_network_permissions/local_network_permissions-arm64.ext
+            local_network_permissions/local_network_permissions.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fleet Extensions Release
+          body: |
+            This release includes updated binaries for the following extensions:
+
+            | Extension                  | Built in this release |
+            |----------------------------|----------------------|
+            | macos_compatibility        |                      |
+            | santa                      |                      |
+            | system_profiler            |                      |
+            | snap_packages              |                      |
+            | nuget_packages             |                      |
+            | brew_list                  |                      |
+            | msft_defender              |                      |
+            | mise                       |                      |
+            | local_network_permissions  | ✅                   |
+
+            See attached assets for binaries.
+          files: |
+            local_network_permissions/local_network_permissions-x86_64.ext
+            local_network_permissions/local_network_permissions-arm64.ext
+            local_network_permissions/local_network_permissions.ext
+          draft: false
+          prerelease: false
+
