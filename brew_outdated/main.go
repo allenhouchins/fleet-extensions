@@ -53,9 +53,6 @@ func main() {
 		generateBrewOutdated,
 	))
 
-	log.Printf("brew_outdated: extension registered, starting server")
-	fmt.Fprintf(os.Stderr, "brew_outdated: extension registered, starting server\n")
-
 	if err := server.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -70,58 +67,26 @@ func brewOutdatedColumns() []table.ColumnDefinition {
 }
 
 func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-	// Log to both log and stderr to ensure visibility in Fleet
-	log.Printf("brew_outdated: generateBrewOutdated called")
-	fmt.Fprintf(os.Stderr, "brew_outdated: generateBrewOutdated called\n")
-
-	// Check if context is already cancelled
-	select {
-	case <-ctx.Done():
-		log.Printf("brew_outdated: context cancelled before execution")
-		fmt.Fprintf(os.Stderr, "brew_outdated: context cancelled before execution\n")
-		return nil, ctx.Err()
-	default:
-		// Context is still valid
-	}
-
-	// Force a log write immediately to verify function is called
-	log.SetOutput(os.Stderr) // Ensure logs go to stderr
-	log.Printf("brew_outdated: function entry point reached")
-	fmt.Fprintf(os.Stderr, "brew_outdated: function entry point reached\n")
-	os.Stderr.Sync() // Force flush
-	
 	var results []map[string]string
 
 	// Find brew binary
 	brewPath, err := findBrewBinary()
 	if err != nil {
-		log.Printf("brew_outdated: could not find brew binary: %v", err)
-		fmt.Fprintf(os.Stderr, "brew_outdated: could not find brew binary: %v\n", err)
 		return results, nil
 	}
-	log.Printf("brew_outdated: found brew binary at: %s", brewPath)
-	fmt.Fprintf(os.Stderr, "brew_outdated: found brew binary at: %s\n", brewPath)
 
 	// Find Homebrew owner to run command as non-root user
 	// This follows osquery best practices: run as the user who owns the tool
 	brewOwner, err := findHomebrewOwner(brewPath)
 	if err != nil {
-		log.Printf("brew_outdated: could not determine Homebrew owner: %v", err)
-		fmt.Fprintf(os.Stderr, "brew_outdated: could not determine Homebrew owner: %v\n", err)
 		return results, nil
 	}
-	log.Printf("brew_outdated: Homebrew owner: %s", brewOwner)
-	fmt.Fprintf(os.Stderr, "brew_outdated: Homebrew owner: %s\n", brewOwner)
 
 	// Check if we're already running as the brew owner
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Printf("brew_outdated: could not determine current user: %v", err)
-		fmt.Fprintf(os.Stderr, "brew_outdated: could not determine current user: %v\n", err)
 		return results, nil
 	}
-	log.Printf("brew_outdated: current user: %s", currentUser.Username)
-	fmt.Fprintf(os.Stderr, "brew_outdated: current user: %s\n", currentUser.Username)
 
 	// Execute 'brew outdated --verbose' command to get version information
 	// Fun fact - TTY detection... need to use --verbose when running programatically.
@@ -131,8 +96,6 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 
 	if currentUser.Username == brewOwner {
 		// Already running as the correct user, no need for sudo
-		log.Printf("brew_outdated: already running as %s, no sudo needed", brewOwner)
-		fmt.Fprintf(os.Stderr, "brew_outdated: already running as %s, no sudo needed\n", brewOwner)
 		cmd = exec.CommandContext(ctx, brewPath, "outdated", "--verbose")
 		env = os.Environ()
 	} else {
@@ -140,13 +103,9 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		// Get the home directory of the brew owner for proper environment setup
 		brewOwnerUser, err := user.Lookup(brewOwner)
 		if err != nil {
-			log.Printf("brew_outdated: could not lookup user %s: %v", brewOwner, err)
-			fmt.Fprintf(os.Stderr, "brew_outdated: could not lookup user %s: %v\n", brewOwner, err)
 			return results, nil
 		}
 
-		log.Printf("brew_outdated: running as %s via sudo (current: %s)", brewOwner, currentUser.Username)
-		fmt.Fprintf(os.Stderr, "brew_outdated: running as %s via sudo (current: %s)\n", brewOwner, currentUser.Username)
 		// When running as root (Fleet), sudo -u works without a password
 		// No need for -n flag or special configuration
 		cmd = exec.CommandContext(ctx, "sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
@@ -156,8 +115,6 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 			"HOME="+brewOwnerUser.HomeDir,
 			"USER="+brewOwner,
 		)
-		log.Printf("brew_outdated: using HOME=%s, USER=%s", brewOwnerUser.HomeDir, brewOwner)
-		fmt.Fprintf(os.Stderr, "brew_outdated: using HOME=%s, USER=%s\n", brewOwnerUser.HomeDir, brewOwner)
 	}
 
 	// Set environment to avoid auto-updates and analytics, and ensure PATH includes Homebrew paths
@@ -167,21 +124,14 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:"+os.Getenv("PATH"))
 
 	// Use CombinedOutput to capture both stdout and stderr for better error handling
-	log.Printf("brew_outdated: executing brew outdated command")
-	fmt.Fprintf(os.Stderr, "brew_outdated: executing brew outdated command\n")
 	output, err := cmd.CombinedOutput()
-	outputStr := string(output)
-	
 	if err != nil {
-		log.Printf("brew_outdated: command exited with error: %v, output length: %d", err, len(outputStr))
-		fmt.Fprintf(os.Stderr, "brew_outdated: command exited with error: %v, output length: %d\n", err, len(outputStr))
 		// brew outdated returns non-zero exit code if there are no outdated packages
 		// Check if the output contains actual error messages (not just empty)
-		
+		outputStr := string(output)
+
 		// If output is empty or only contains whitespace, assume no outdated packages
 		if strings.TrimSpace(outputStr) == "" {
-			log.Printf("brew_outdated: empty output, assuming no outdated packages")
-			fmt.Fprintf(os.Stderr, "brew_outdated: empty output, assuming no outdated packages\n")
 			return results, nil
 		}
 
@@ -189,33 +139,21 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		if strings.Contains(outputStr, "Error:") || strings.Contains(outputStr, "error:") {
 			// Check for the specific "Running Homebrew as root" error
 			if strings.Contains(outputStr, "Running Homebrew as root") {
-				// Log for debugging (Fleet logs may be available)
-				log.Printf("brew_outdated: Homebrew refused to run as root")
-				fmt.Fprintf(os.Stderr, "brew_outdated: Homebrew refused to run as root\n")
 				return results, nil
 			}
 			// Check for sudo password prompt or permission denied
 			if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") ||
 				strings.Contains(outputStr, "a password is required") {
-				// Log for debugging - this is likely the issue in Fleet
-				log.Printf("brew_outdated: sudo authentication required (output: %s)", strings.TrimSpace(outputStr))
-				fmt.Fprintf(os.Stderr, "brew_outdated: sudo authentication required (output: %s)\n", strings.TrimSpace(outputStr))
 				return results, nil
 			}
-			// Log other errors for debugging
-			log.Printf("brew_outdated: brew command error: %s", strings.TrimSpace(outputStr))
-			fmt.Fprintf(os.Stderr, "brew_outdated: brew command error: %s\n", strings.TrimSpace(outputStr))
+			// For other errors, return empty results gracefully
 			return results, nil
 		}
 
 		// Otherwise, try to parse the output anyway (brew might exit non-zero but still have data)
-		log.Printf("brew_outdated: attempting to parse output despite error")
-		fmt.Fprintf(os.Stderr, "brew_outdated: attempting to parse output despite error\n")
 	}
 
 	// Parse the output
-	log.Printf("brew_outdated: parsing output, length: %d", len(outputStr))
-	fmt.Fprintf(os.Stderr, "brew_outdated: parsing output, length: %d\n", len(outputStr))
 		// Format can be one of:
 		// 1. "package_name (installed_version) < latest_version" - for updates
 		// 2. "package_name (installed_version) != latest_version" - for cask version changes
@@ -267,8 +205,6 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 			}
 		}
 
-	log.Printf("brew_outdated: parsed %d outdated packages", len(results))
-	fmt.Fprintf(os.Stderr, "brew_outdated: parsed %d outdated packages\n", len(results))
 	return results, nil
 }
 
