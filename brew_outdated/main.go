@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	_ "regexp" // Temporarily unused due to test code
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -89,129 +89,133 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 	log.Printf("brew_outdated: function entry point reached")
 	fmt.Fprintf(os.Stderr, "brew_outdated: function entry point reached\n")
 	os.Stderr.Sync() // Force flush
+	
+	var results []map[string]string
 
-	// TEMPORARY: Return a test row to verify function is being called in Fleet
-	// Remove this after confirming the function is invoked
-	testResults := []map[string]string{
-		{
-			"name":              "TEST_ROW",
-			"installed_version": "1.0.0",
-			"latest_version":    "2.0.0",
-		},
+	// Find brew binary
+	brewPath, err := findBrewBinary()
+	if err != nil {
+		log.Printf("brew_outdated: could not find brew binary: %v", err)
+		fmt.Fprintf(os.Stderr, "brew_outdated: could not find brew binary: %v\n", err)
+		return results, nil
 	}
-	log.Printf("brew_outdated: returning test row")
-	return testResults, nil
+	log.Printf("brew_outdated: found brew binary at: %s", brewPath)
+	fmt.Fprintf(os.Stderr, "brew_outdated: found brew binary at: %s\n", brewPath)
 
-	// Code below is temporarily disabled for testing
-	/*
-		var results []map[string]string
+	// Find Homebrew owner to run command as non-root user
+	// This follows osquery best practices: run as the user who owns the tool
+	brewOwner, err := findHomebrewOwner(brewPath)
+	if err != nil {
+		log.Printf("brew_outdated: could not determine Homebrew owner: %v", err)
+		fmt.Fprintf(os.Stderr, "brew_outdated: could not determine Homebrew owner: %v\n", err)
+		return results, nil
+	}
+	log.Printf("brew_outdated: Homebrew owner: %s", brewOwner)
+	fmt.Fprintf(os.Stderr, "brew_outdated: Homebrew owner: %s\n", brewOwner)
 
-		// Find brew binary
-		brewPath, err := findBrewBinary()
+	// Check if we're already running as the brew owner
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Printf("brew_outdated: could not determine current user: %v", err)
+		fmt.Fprintf(os.Stderr, "brew_outdated: could not determine current user: %v\n", err)
+		return results, nil
+	}
+	log.Printf("brew_outdated: current user: %s", currentUser.Username)
+	fmt.Fprintf(os.Stderr, "brew_outdated: current user: %s\n", currentUser.Username)
+
+	// Execute 'brew outdated --verbose' command to get version information
+	// Fun fact - TTY detection... need to use --verbose when running programatically.
+	// Run as the Homebrew owner to avoid "Running Homebrew as root" error
+	var cmd *exec.Cmd
+	var env []string
+
+	if currentUser.Username == brewOwner {
+		// Already running as the correct user, no need for sudo
+		log.Printf("brew_outdated: already running as %s, no sudo needed", brewOwner)
+		fmt.Fprintf(os.Stderr, "brew_outdated: already running as %s, no sudo needed\n", brewOwner)
+		cmd = exec.CommandContext(ctx, brewPath, "outdated", "--verbose")
+		env = os.Environ()
+	} else {
+		// Need to run as the Homebrew owner using sudo
+		// Get the home directory of the brew owner for proper environment setup
+		brewOwnerUser, err := user.Lookup(brewOwner)
 		if err != nil {
-			log.Printf("brew_outdated: could not find brew binary: %v", err)
+			log.Printf("brew_outdated: could not lookup user %s: %v", brewOwner, err)
+			fmt.Fprintf(os.Stderr, "brew_outdated: could not lookup user %s: %v\n", brewOwner, err)
 			return results, nil
 		}
-		log.Printf("brew_outdated: found brew binary at: %s", brewPath)
 
-		// Find Homebrew owner to run command as non-root user
-		// This follows osquery best practices: run as the user who owns the tool
-		brewOwner, err := findHomebrewOwner(brewPath)
-		if err != nil {
-			log.Printf("brew_outdated: could not determine Homebrew owner: %v", err)
+		log.Printf("brew_outdated: running as %s via sudo (current: %s)", brewOwner, currentUser.Username)
+		fmt.Fprintf(os.Stderr, "brew_outdated: running as %s via sudo (current: %s)\n", brewOwner, currentUser.Username)
+		// When running as root (Fleet), sudo -u works without a password
+		// No need for -n flag or special configuration
+		cmd = exec.CommandContext(ctx, "sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
+
+		// Set environment with Homebrew owner's HOME and proper PATH
+		env = append(os.Environ(),
+			"HOME="+brewOwnerUser.HomeDir,
+			"USER="+brewOwner,
+		)
+		log.Printf("brew_outdated: using HOME=%s, USER=%s", brewOwnerUser.HomeDir, brewOwner)
+		fmt.Fprintf(os.Stderr, "brew_outdated: using HOME=%s, USER=%s\n", brewOwnerUser.HomeDir, brewOwner)
+	}
+
+	// Set environment to avoid auto-updates and analytics, and ensure PATH includes Homebrew paths
+	cmd.Env = append(env,
+		"HOMEBREW_NO_AUTO_UPDATE=1",
+		"HOMEBREW_NO_ANALYTICS=1",
+		"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:"+os.Getenv("PATH"))
+
+	// Use CombinedOutput to capture both stdout and stderr for better error handling
+	log.Printf("brew_outdated: executing brew outdated command")
+	fmt.Fprintf(os.Stderr, "brew_outdated: executing brew outdated command\n")
+	output, err := cmd.CombinedOutput()
+	outputStr := string(output)
+	
+	if err != nil {
+		log.Printf("brew_outdated: command exited with error: %v, output length: %d", err, len(outputStr))
+		fmt.Fprintf(os.Stderr, "brew_outdated: command exited with error: %v, output length: %d\n", err, len(outputStr))
+		// brew outdated returns non-zero exit code if there are no outdated packages
+		// Check if the output contains actual error messages (not just empty)
+		
+		// If output is empty or only contains whitespace, assume no outdated packages
+		if strings.TrimSpace(outputStr) == "" {
+			log.Printf("brew_outdated: empty output, assuming no outdated packages")
+			fmt.Fprintf(os.Stderr, "brew_outdated: empty output, assuming no outdated packages\n")
 			return results, nil
 		}
-		log.Printf("brew_outdated: Homebrew owner: %s", brewOwner)
 
-		// Check if we're already running as the brew owner
-		currentUser, err := user.Current()
-		if err != nil {
-			log.Printf("brew_outdated: could not determine current user: %v", err)
+		// Check if this looks like an actual error (contains "Error:" or similar)
+		if strings.Contains(outputStr, "Error:") || strings.Contains(outputStr, "error:") {
+			// Check for the specific "Running Homebrew as root" error
+			if strings.Contains(outputStr, "Running Homebrew as root") {
+				// Log for debugging (Fleet logs may be available)
+				log.Printf("brew_outdated: Homebrew refused to run as root")
+				fmt.Fprintf(os.Stderr, "brew_outdated: Homebrew refused to run as root\n")
+				return results, nil
+			}
+			// Check for sudo password prompt or permission denied
+			if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") ||
+				strings.Contains(outputStr, "a password is required") {
+				// Log for debugging - this is likely the issue in Fleet
+				log.Printf("brew_outdated: sudo authentication required (output: %s)", strings.TrimSpace(outputStr))
+				fmt.Fprintf(os.Stderr, "brew_outdated: sudo authentication required (output: %s)\n", strings.TrimSpace(outputStr))
+				return results, nil
+			}
+			// Log other errors for debugging
+			log.Printf("brew_outdated: brew command error: %s", strings.TrimSpace(outputStr))
+			fmt.Fprintf(os.Stderr, "brew_outdated: brew command error: %s\n", strings.TrimSpace(outputStr))
 			return results, nil
 		}
-		log.Printf("brew_outdated: current user: %s", currentUser.Username)
 
-		// Execute 'brew outdated --verbose' command to get version information
-		// Fun fact - TTY detection... need to use --verbose when running programatically.
-		// Run as the Homebrew owner to avoid "Running Homebrew as root" error
-		var cmd *exec.Cmd
-		var env []string
+		// Otherwise, try to parse the output anyway (brew might exit non-zero but still have data)
+		log.Printf("brew_outdated: attempting to parse output despite error")
+		fmt.Fprintf(os.Stderr, "brew_outdated: attempting to parse output despite error\n")
+	}
 
-		if currentUser.Username == brewOwner {
-			// Already running as the correct user, no need for sudo
-			log.Printf("brew_outdated: already running as %s, no sudo needed", brewOwner)
-			cmd = exec.CommandContext(ctx, brewPath, "outdated", "--verbose")
-			env = os.Environ()
-		} else {
-			// Need to run as the Homebrew owner using sudo
-			// Get the home directory of the brew owner for proper environment setup
-			brewOwnerUser, err := user.Lookup(brewOwner)
-			if err != nil {
-				log.Printf("brew_outdated: could not lookup user %s: %v", brewOwner, err)
-				return results, nil
-			}
-
-			log.Printf("brew_outdated: running as %s via sudo (current: %s)", brewOwner, currentUser.Username)
-			// When running as root (Fleet), sudo -u works without a password
-			// No need for -n flag or special configuration
-			cmd = exec.CommandContext(ctx, "sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
-
-			// Set environment with Homebrew owner's HOME and proper PATH
-			env = append(os.Environ(),
-				"HOME="+brewOwnerUser.HomeDir,
-				"USER="+brewOwner,
-			)
-			log.Printf("brew_outdated: using HOME=%s, USER=%s", brewOwnerUser.HomeDir, brewOwner)
-		}
-
-		// Set environment to avoid auto-updates and analytics, and ensure PATH includes Homebrew paths
-		cmd.Env = append(env,
-			"HOMEBREW_NO_AUTO_UPDATE=1",
-			"HOMEBREW_NO_ANALYTICS=1",
-			"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:"+os.Getenv("PATH"))
-
-		// Use CombinedOutput to capture both stdout and stderr for better error handling
-		log.Printf("brew_outdated: executing brew outdated command")
-		output, err := cmd.CombinedOutput()
-		outputStr := string(output)
-
-		if err != nil {
-			log.Printf("brew_outdated: command exited with error: %v, output length: %d", err, len(outputStr))
-			// brew outdated returns non-zero exit code if there are no outdated packages
-			// Check if the output contains actual error messages (not just empty)
-
-			// If output is empty or only contains whitespace, assume no outdated packages
-			if strings.TrimSpace(outputStr) == "" {
-				log.Printf("brew_outdated: empty output, assuming no outdated packages")
-				return results, nil
-			}
-
-			// Check if this looks like an actual error (contains "Error:" or similar)
-			if strings.Contains(outputStr, "Error:") || strings.Contains(outputStr, "error:") {
-				// Check for the specific "Running Homebrew as root" error
-				if strings.Contains(outputStr, "Running Homebrew as root") {
-					// Log for debugging (Fleet logs may be available)
-					log.Printf("brew_outdated: Homebrew refused to run as root")
-					return results, nil
-				}
-				// Check for sudo password prompt or permission denied
-				if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") ||
-					strings.Contains(outputStr, "a password is required") {
-					// Log for debugging - this is likely the issue in Fleet
-					log.Printf("brew_outdated: sudo authentication required (output: %s)", strings.TrimSpace(outputStr))
-					return results, nil
-				}
-				// Log other errors for debugging
-				log.Printf("brew_outdated: brew command error: %s", strings.TrimSpace(outputStr))
-				return results, nil
-			}
-
-			// Otherwise, try to parse the output anyway (brew might exit non-zero but still have data)
-			log.Printf("brew_outdated: attempting to parse output despite error")
-		}
-
-		// Parse the output
-		log.Printf("brew_outdated: parsing output, length: %d", len(outputStr))
+	// Parse the output
+	log.Printf("brew_outdated: parsing output, length: %d", len(outputStr))
+	fmt.Fprintf(os.Stderr, "brew_outdated: parsing output, length: %d\n", len(outputStr))
 		// Format can be one of:
 		// 1. "package_name (installed_version) < latest_version" - for updates
 		// 2. "package_name (installed_version) != latest_version" - for cask version changes
@@ -263,9 +267,9 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 			}
 		}
 
-		log.Printf("brew_outdated: parsed %d outdated packages", len(results))
-		return results, nil
-	*/
+	log.Printf("brew_outdated: parsed %d outdated packages", len(results))
+	fmt.Fprintf(os.Stderr, "brew_outdated: parsed %d outdated packages\n", len(results))
+	return results, nil
 }
 
 // findBrewBinary finds the brew binary path
