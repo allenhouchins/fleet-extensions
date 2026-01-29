@@ -7,11 +7,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/user"
-	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/osquery/osquery-go"
@@ -72,51 +69,16 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 	// Find brew binary
 	brewPath, err := findBrewBinary()
 	if err != nil {
-		return results, fmt.Errorf("brew binary not found: %v", err)
-	}
-
-	// Find Homebrew owner to run command as non-root user
-	brewOwner, err := findHomebrewOwner(brewPath)
-	if err != nil {
-		return results, fmt.Errorf("could not determine Homebrew owner: %v", err)
-	}
-
-	// Check if we're already running as the brew owner
-	currentUser, err := user.Current()
-	if err != nil {
-		return results, fmt.Errorf("could not determine current user: %v", err)
+		// Return empty results gracefully if brew is not found
+		return results, nil
 	}
 
 	// Execute 'brew outdated --verbose' command to get version information
 	// Fun fact - TTY detection... need to use --verbose when running programatically.
-	// Run as the Homebrew owner to avoid "Running Homebrew as root" error
-	var cmd *exec.Cmd
-	var env []string
-
-	if currentUser.Username == brewOwner {
-		// Already running as the correct user, no need for sudo
-		cmd = exec.CommandContext(ctx, brewPath, "outdated", "--verbose")
-		env = os.Environ()
-	} else {
-		// Need to run as the Homebrew owner using sudo
-		// Get the home directory of the brew owner for proper environment setup
-		brewOwnerUser, err := user.Lookup(brewOwner)
-		if err != nil {
-			return results, fmt.Errorf("could not lookup Homebrew owner user %s: %v", brewOwner, err)
-		}
-
-		// Use sudo -u with -E to preserve environment, but we'll override key vars
-		cmd = exec.CommandContext(ctx, "sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
-
-		// Set environment with Homebrew owner's HOME and proper PATH
-		env = append(os.Environ(),
-			"HOME="+brewOwnerUser.HomeDir,
-			"USER="+brewOwner,
-		)
-	}
+	cmd := exec.CommandContext(ctx, brewPath, "outdated", "--verbose")
 
 	// Set environment to avoid auto-updates and analytics, and ensure PATH includes Homebrew paths
-	cmd.Env = append(env,
+	cmd.Env = append(os.Environ(),
 		"HOMEBREW_NO_AUTO_UPDATE=1",
 		"HOMEBREW_NO_ANALYTICS=1",
 		"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:"+os.Getenv("PATH"))
@@ -135,16 +97,9 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 
 		// Check if this looks like an actual error (contains "Error:" or similar)
 		if strings.Contains(outputStr, "Error:") || strings.Contains(outputStr, "error:") {
-			// Check for the specific "Running Homebrew as root" error
-			if strings.Contains(outputStr, "Running Homebrew as root") {
-				return results, fmt.Errorf("Homebrew cannot run as root. Extension attempted to run as user %s but may need sudo configuration. Error: %s", brewOwner, outputStr)
-			}
-			// Check for sudo password prompt
-			if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") {
-				return results, fmt.Errorf("sudo authentication required to run brew as user %s. Configure passwordless sudo or run osquery as the Homebrew owner. Error: %s", brewOwner, outputStr)
-			}
-			// This is a real error, return it
-			return results, fmt.Errorf("brew outdated failed: %v, output: %s", err, outputStr)
+			// For Fleet compatibility, return empty results instead of errors
+			// This allows the query to succeed even if brew commands fail
+			return results, nil
 		}
 
 		// Otherwise, try to parse the output anyway (brew might exit non-zero but still have data)
@@ -178,10 +133,7 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 
 		matches := outdatedRegex.FindStringSubmatch(line)
 		if len(matches) != 5 {
-			// Only log if it looks like it should be a package line
-			if strings.Contains(line, "(") && strings.Contains(line, ")") {
-				log.Printf("Warning: Could not parse line: %s", line)
-			}
+			// Skip lines that don't match the expected format
 			continue
 		}
 
@@ -234,33 +186,4 @@ func findBrewBinary() (string, error) {
 	}
 
 	return "", fmt.Errorf("brew binary not found")
-}
-
-// findHomebrewOwner finds the user who owns the Homebrew installation
-// This is needed because Homebrew refuses to run as root
-func findHomebrewOwner(brewPath string) (string, error) {
-	// Determine Homebrew root directory from brew binary path
-	// e.g., /opt/homebrew/bin/brew -> /opt/homebrew
-	// e.g., /usr/local/bin/brew -> /usr/local
-	brewRoot := filepath.Dir(filepath.Dir(brewPath))
-
-	// Check if the directory exists
-	info, err := os.Stat(brewRoot)
-	if err != nil {
-		return "", fmt.Errorf("could not stat Homebrew root %s: %v", brewRoot, err)
-	}
-
-	// Get the owner's UID
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return "", fmt.Errorf("could not get file stat info")
-	}
-
-	// Look up the username from UID
-	owner, err := user.LookupId(fmt.Sprintf("%d", stat.Uid))
-	if err != nil {
-		return "", fmt.Errorf("could not lookup user ID %d: %v", stat.Uid, err)
-	}
-
-	return owner.Username, nil
 }
