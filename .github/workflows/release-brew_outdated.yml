@@ -1,0 +1,62 @@
+name: Release brew_outdated
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'brew_outdated/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          cd brew_outdated
+          make deps
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: brew_outdated-binaries
+          path: |
+            brew_outdated/brew_outdated-x86_64.ext
+            brew_outdated/brew_outdated-arm64.ext
+            brew_outdated/brew_outdated.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fleet Extensions Release
+          body: |
+            This release includes updated binaries for the following extensions:
+
+            | Extension              | Built in this release |
+            |------------------------|----------------------|
+            | macos_compatibility    |                      |
+            | santa                  |                      |
+            | system_profiler        |                      |
+            | snap_packages          |                      |
+            | nuget_packages         |                      |
+            | brew_list              |                      |
+            | homebrew_info          |                      |
+            | brew_outdated          | ✅                   |
+
+            See attached assets for binaries.
+          files: |
+            brew_outdated/brew_outdated-x86_64.ext
+            brew_outdated/brew_outdated-arm64.ext
+            brew_outdated/brew_outdated.ext
+          draft: false
+          prerelease: false
