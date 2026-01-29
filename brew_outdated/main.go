@@ -96,7 +96,7 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 
 	if currentUser.Username == brewOwner {
 		// Already running as the correct user, no need for sudo
-		cmd = exec.CommandContext(ctx, brewPath, "outdated", "--verbose")
+		cmd = exec.Command(brewPath, "outdated", "--verbose")
 		env = os.Environ()
 	} else {
 		// Need to run as the Homebrew owner using sudo
@@ -107,10 +107,11 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		}
 
 		// When running as root (Fleet), sudo -u works without a password
-		// No need for -n flag or special configuration
-		cmd = exec.CommandContext(ctx, "sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
+		// Note: Using exec.Command instead of CommandContext to avoid context cancellation issues in Fleet
+		cmd = exec.Command("sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
 
 		// Set environment with Homebrew owner's HOME and proper PATH
+		// Match the pattern used by other working extensions
 		env = append(os.Environ(),
 			"HOME="+brewOwnerUser.HomeDir,
 			"USER="+brewOwner,
@@ -123,8 +124,9 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		"HOMEBREW_NO_ANALYTICS=1",
 		"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:"+os.Getenv("PATH"))
 
-	// Use CombinedOutput to capture both stdout and stderr for better error handling
-	output, err := cmd.CombinedOutput()
+	// Use Output to capture stdout (stderr will be lost but brew outdated uses stdout for data)
+	// This matches the pattern used by other working extensions like nuget_packages
+	output, err := cmd.Output()
 	if err != nil {
 		// brew outdated returns non-zero exit code if there are no outdated packages
 		// Check if the output contains actual error messages (not just empty)
@@ -154,56 +156,56 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 	}
 
 	// Parse the output
-		// Format can be one of:
-		// 1. "package_name (installed_version) < latest_version" - for updates
-		// 2. "package_name (installed_version) != latest_version" - for cask version changes
-		// Example: "aom (3.12.0) < 3.13.1"
-		// Example: "displaylink (14.2,2025-11) != 15.0,2025-12"
-		// Also handles multiple installed versions: "certbot (2.11.0_2, 3.2.0) < 5.2.2_1"
+	// Format can be one of:
+	// 1. "package_name (installed_version) < latest_version" - for updates
+	// 2. "package_name (installed_version) != latest_version" - for cask version changes
+	// Example: "aom (3.12.0) < 3.13.1"
+	// Example: "displaylink (14.2,2025-11) != 15.0,2025-12"
+	// Also handles multiple installed versions: "certbot (2.11.0_2, 3.2.0) < 5.2.2_1"
 
-		lines := strings.Split(string(output), "\n")
+	lines := strings.Split(string(output), "\n")
 
-		// Regex to match the outdated package format - handles both < and != operators
-		// Captures: package name, installed version(s), operator, latest version
-		outdatedRegex := regexp.MustCompile(`^([^\s]+)\s+\(([^)]+)\)\s+(<|!=)\s+(.+)$`)
+	// Regex to match the outdated package format - handles both < and != operators
+	// Captures: package name, installed version(s), operator, latest version
+	outdatedRegex := regexp.MustCompile(`^([^\s]+)\s+\(([^)]+)\)\s+(<|!=)\s+(.+)$`)
 
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			// Skip progress/status lines (like "✔︎ JSON API..." or lines with "Downloaded")
-			if strings.Contains(line, "Downloaded") || strings.Contains(line, "API") ||
-				strings.HasPrefix(line, "✔") || strings.HasPrefix(line, "==>") {
-				continue
-			}
-
-			matches := outdatedRegex.FindStringSubmatch(line)
-			if len(matches) != 5 {
-				// Skip lines that don't match the expected format
-				continue
-			}
-
-			packageName := matches[1]
-			installedVersions := matches[2]
-			// matches[3] is the operator (< or !=)
-			latestVersion := strings.TrimSpace(matches[4])
-
-			// Handle multiple installed versions (comma-separated)
-			// We'll create one row per installed version
-			versionList := strings.Split(installedVersions, ",")
-
-			for _, version := range versionList {
-				version = strings.TrimSpace(version)
-
-				results = append(results, map[string]string{
-					"name":              packageName,
-					"installed_version": version,
-					"latest_version":    latestVersion,
-				})
-			}
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
+
+		// Skip progress/status lines (like "✔︎ JSON API..." or lines with "Downloaded")
+		if strings.Contains(line, "Downloaded") || strings.Contains(line, "API") ||
+			strings.HasPrefix(line, "✔") || strings.HasPrefix(line, "==>") {
+			continue
+		}
+
+		matches := outdatedRegex.FindStringSubmatch(line)
+		if len(matches) != 5 {
+			// Skip lines that don't match the expected format
+			continue
+		}
+
+		packageName := matches[1]
+		installedVersions := matches[2]
+		// matches[3] is the operator (< or !=)
+		latestVersion := strings.TrimSpace(matches[4])
+
+		// Handle multiple installed versions (comma-separated)
+		// We'll create one row per installed version
+		versionList := strings.Split(installedVersions, ",")
+
+		for _, version := range versionList {
+			version = strings.TrimSpace(version)
+
+			results = append(results, map[string]string{
+				"name":              packageName,
+				"installed_version": version,
+				"latest_version":    latestVersion,
+			})
+		}
+	}
 
 	return results, nil
 }
