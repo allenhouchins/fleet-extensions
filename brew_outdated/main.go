@@ -110,7 +110,8 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 			return results, nil
 		}
 
-		// Use sudo -u with -E to preserve environment, but we'll override key vars
+		// When running as root (Fleet), sudo -u works without a password
+		// No need for -n flag or special configuration
 		cmd = exec.CommandContext(ctx, "sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
 
 		// Set environment with Homebrew owner's HOME and proper PATH
@@ -142,15 +143,19 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		if strings.Contains(outputStr, "Error:") || strings.Contains(outputStr, "error:") {
 			// Check for the specific "Running Homebrew as root" error
 			if strings.Contains(outputStr, "Running Homebrew as root") {
-				// Return empty results gracefully for Fleet compatibility
+				// Log for debugging (Fleet logs may be available)
+				log.Printf("brew_outdated: Homebrew refused to run as root")
 				return results, nil
 			}
-			// Check for sudo password prompt
-			if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") {
-				// Return empty results gracefully for Fleet compatibility
+			// Check for sudo password prompt or permission denied
+			if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") ||
+				strings.Contains(outputStr, "a password is required") {
+				// Log for debugging - this is likely the issue in Fleet
+				log.Printf("brew_outdated: sudo authentication required (output: %s)", strings.TrimSpace(outputStr))
 				return results, nil
 			}
-			// For other errors, return empty results gracefully (Fleet compatibility)
+			// Log other errors for debugging
+			log.Printf("brew_outdated: brew command error: %s", strings.TrimSpace(outputStr))
 			return results, nil
 		}
 
