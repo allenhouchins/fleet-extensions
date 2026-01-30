@@ -108,7 +108,8 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 
 		// When running as root (Fleet), sudo -u works without a password
 		// Note: Using exec.Command instead of CommandContext to avoid context cancellation issues in Fleet
-		cmd = exec.Command("sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
+		// Use full path to sudo since osquery may not have /usr/bin in PATH
+		cmd = exec.Command("/usr/bin/sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
 
 		// Set environment with Homebrew owner's HOME and proper PATH
 		// Match the pattern used by other working extensions
