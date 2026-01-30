@@ -1,4 +1,4 @@
-# brew_outdated Osquery Extension
+# Brew Outdated Osquery Extension
 
 An osquery extension that provides information about outdated Homebrew packages on macOS systems.
 
@@ -47,7 +47,7 @@ sudo orbit shell -- --extension brew_outdated.ext --allow-unsafe
 osqueryi --extension=/path/to/brew_outdated.ext
 ```
 
-### Example Queries
+## Example queries and policies
 
 Get all outdated packages:
 ```sql
@@ -59,20 +59,9 @@ Count how many outdated packages are installed:
 SELECT COUNT(*) as outdated_count FROM brew_outdated;
 ```
 
-Find packages with major version updates available:
+Policy to return if `snappy` is out of date:
 ```sql
-SELECT 
-  name,
-  installed_version,
-  latest_version
-FROM brew_outdated
-WHERE CAST(SUBSTR(latest_version, 1, INSTR(latest_version, '.') - 1) AS INTEGER) > 
-      CAST(SUBSTR(installed_version, 1, INSTR(installed_version, '.') - 1) AS INTEGER);
-```
-
-Check if a specific package is outdated:
-```sql
-SELECT * FROM brew_outdated WHERE name = 'curl';
+SELECT 1 FROM brew_outdated WHERE name = 'snappy';
 ```
 
 ## Notes & Limitations
