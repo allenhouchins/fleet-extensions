@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/osquery/osquery-go"
@@ -22,16 +23,6 @@ var (
 	timeout  = flag.Int("timeout", 3, "Seconds to wait for autoloaded extensions")
 	interval = flag.Int("interval", 3, "Seconds delay between connectivity checks")
 )
-
-// HomebrewFormulaAPIResponse represents the JSON response from formulae.brew.sh API
-type HomebrewFormulaAPIResponse struct {
-	Name     string `json:"name"`
-	Versions struct {
-		Stable string `json:"stable"`
-		Devel  string `json:"devel"`
-		Head   string `json:"head"`
-	} `json:"versions"`
-}
 
 func main() {
 	flag.Parse()
@@ -72,38 +63,47 @@ func brewOutdatedColumns() []table.ColumnDefinition {
 		table.TextColumn("name"),
 		table.TextColumn("installed_version"),
 		table.TextColumn("latest_version"),
-		table.TextColumn("type"),
 	}
 }
 
 func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	var results []map[string]string
 
-	log.Printf("=== DEBUG: Starting generateBrewOutdated ===")
-
-	// Find Homebrew root
-	brewRoot, err := findHomebrewRoot()
+	// Find brew binary
+	brewPath, err := findBrewBinary()
 	if err != nil {
-		log.Printf("Error finding Homebrew root: %v", err)
 		return results, nil
 	}
-	log.Printf("DEBUG: Homebrew root: %s", brewRoot)
 
-	// Get installed packages and their versions
-	installedPackages := readInstalledPackages(brewRoot)
-	log.Printf("DEBUG: Found %d installed packages", len(installedPackages))
-
-	// Create HTTP client with timeout
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
+	// Find Homebrew owner to run command as non-root user
+	// This follows osquery best practices: run as the user who owns the tool
+	brewOwner, err := findHomebrewOwner(brewPath)
+	if err != nil {
+		return results, nil
 	}
 
-	// For each installed package, check if it's outdated
-	for pkgName, pkgInfo := range installedPackages {
-		latestVersion, err := getLatestVersion(httpClient, pkgName, pkgInfo.pkgType)
+	// Check if we're already running as the brew owner
+	currentUser, err := user.Current()
+	if err != nil {
+		return results, nil
+	}
+
+	// Execute 'brew outdated --verbose' command to get version information
+	// Fun fact - TTY detection... need to use --verbose when running programatically.
+	// Run as the Homebrew owner to avoid "Running Homebrew as root" error
+	var cmd *exec.Cmd
+	var env []string
+
+	if currentUser.Username == brewOwner {
+		// Already running as the correct user, no need for sudo
+		cmd = exec.Command(brewPath, "outdated", "--verbose")
+		env = os.Environ()
+	} else {
+		// Need to run as the Homebrew owner using sudo
+		// Get the home directory of the brew owner for proper environment setup
+		brewOwnerUser, err := user.Lookup(brewOwner)
 		if err != nil {
-			log.Printf("DEBUG: Error getting latest version for %s: %v", pkgName, err)
-			continue
+			return results, nil
 		}
 
 		// When running as root (Fleet), sudo -u works without a password
@@ -111,152 +111,160 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 		// Use full path to sudo since osquery may not have /usr/bin in PATH
 		cmd = exec.Command("/usr/bin/sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
 
-		// Compare versions - if they're different, package is outdated
-		if pkgInfo.installedVersion != latestVersion {
-			log.Printf("DEBUG: Package %s is outdated: %s < %s", pkgName, pkgInfo.installedVersion, latestVersion)
+		// Set environment with Homebrew owner's HOME and proper PATH
+		// Match the pattern used by other working extensions
+		env = append(os.Environ(),
+			"HOME="+brewOwnerUser.HomeDir,
+			"USER="+brewOwner,
+		)
+	}
+
+	// Set environment to avoid auto-updates and analytics, and ensure PATH includes Homebrew paths
+	cmd.Env = append(env,
+		"HOMEBREW_NO_AUTO_UPDATE=1",
+		"HOMEBREW_NO_ANALYTICS=1",
+		"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:"+os.Getenv("PATH"))
+
+	// Use Output to capture stdout (stderr will be lost but brew outdated uses stdout for data)
+	// This matches the pattern used by other working extensions like nuget_packages
+	output, err := cmd.Output()
+	if err != nil {
+		// brew outdated returns non-zero exit code if there are no outdated packages
+		// Check if the output contains actual error messages (not just empty)
+		outputStr := string(output)
+
+		// If output is empty or only contains whitespace, assume no outdated packages
+		if strings.TrimSpace(outputStr) == "" {
+			return results, nil
+		}
+
+		// Check if this looks like an actual error (contains "Error:" or similar)
+		if strings.Contains(outputStr, "Error:") || strings.Contains(outputStr, "error:") {
+			// Check for the specific "Running Homebrew as root" error
+			if strings.Contains(outputStr, "Running Homebrew as root") {
+				return results, nil
+			}
+			// Check for sudo password prompt or permission denied
+			if strings.Contains(outputStr, "password") || strings.Contains(outputStr, "sudo:") ||
+				strings.Contains(outputStr, "a password is required") {
+				return results, nil
+			}
+			// For other errors, return empty results gracefully
+			return results, nil
+		}
+
+		// Otherwise, try to parse the output anyway (brew might exit non-zero but still have data)
+	}
+
+	// Parse the output
+	// Format can be one of:
+	// 1. "package_name (installed_version) < latest_version" - for updates
+	// 2. "package_name (installed_version) != latest_version" - for cask version changes
+	// Example: "aom (3.12.0) < 3.13.1"
+	// Example: "displaylink (14.2,2025-11) != 15.0,2025-12"
+	// Also handles multiple installed versions: "certbot (2.11.0_2, 3.2.0) < 5.2.2_1"
+
+	lines := strings.Split(string(output), "\n")
+
+	// Regex to match the outdated package format - handles both < and != operators
+	// Captures: package name, installed version(s), operator, latest version
+	outdatedRegex := regexp.MustCompile(`^([^\s]+)\s+\(([^)]+)\)\s+(<|!=)\s+(.+)$`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Skip progress/status lines (like "✔︎ JSON API..." or lines with "Downloaded")
+		if strings.Contains(line, "Downloaded") || strings.Contains(line, "API") ||
+			strings.HasPrefix(line, "✔") || strings.HasPrefix(line, "==>") {
+			continue
+		}
+
+		matches := outdatedRegex.FindStringSubmatch(line)
+		if len(matches) != 5 {
+			// Skip lines that don't match the expected format
+			continue
+		}
+
+		packageName := matches[1]
+		installedVersions := matches[2]
+		// matches[3] is the operator (< or !=)
+		latestVersion := strings.TrimSpace(matches[4])
+
+		// Handle multiple installed versions (comma-separated)
+		// We'll create one row per installed version
+		versionList := strings.Split(installedVersions, ",")
+
+		for _, version := range versionList {
+			version = strings.TrimSpace(version)
+
 			results = append(results, map[string]string{
-				"name":              pkgName,
-				"installed_version": pkgInfo.installedVersion,
+				"name":              packageName,
+				"installed_version": version,
 				"latest_version":    latestVersion,
-				"type":              pkgInfo.pkgType,
 			})
-		} else {
-			log.Printf("DEBUG: Package %s is up to date: %s", pkgName, pkgInfo.installedVersion)
 		}
 	}
 
-	log.Printf("DEBUG: Found %d outdated packages", len(results))
-	log.Printf("=== DEBUG: Finished generateBrewOutdated ===")
 	return results, nil
 }
 
-type PackageInfo struct {
-	installedVersion string
-	pkgType          string
-}
-
-func findHomebrewRoot() (string, error) {
-	possibleRoots := []string{
-		"/opt/homebrew",
-		"/usr/local",
-	}
-
-	for _, root := range possibleRoots {
-		if _, err := os.Stat(root); err == nil {
-			if _, err := os.Stat(filepath.Join(root, "Cellar")); err == nil {
-				return root, nil
-			}
+// findBrewBinary finds the brew binary path
+func findBrewBinary() (string, error) {
+	// First, try to find brew using 'which' command
+	whichCmd := exec.Command("which", "brew")
+	output, err := whichCmd.Output()
+	if err == nil {
+		brewPath := strings.TrimSpace(string(output))
+		if brewPath != "" {
+			return brewPath, nil
 		}
 	}
 
-	return "", fmt.Errorf("Homebrew root not found")
-}
+	// Fallback: check common Homebrew installation paths
+	homebrewPaths := []string{
+		"/opt/homebrew/bin/brew",              // Apple Silicon Mac
+		"/usr/local/bin/brew",                 // Intel Mac
+		"/home/linuxbrew/.linuxbrew/bin/brew", // Linux
+	}
 
-func readInstalledPackages(brewRoot string) map[string]PackageInfo {
-	installed := make(map[string]PackageInfo)
-
-	// Read formulas from Cellar
-	cellarPath := filepath.Join(brewRoot, "Cellar")
-	if entries, err := os.ReadDir(cellarPath); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			pkgName := entry.Name()
-			// Get the version from the opt symlink
-			version := getVersionFromSymlink(brewRoot, pkgName)
-			if version != "" {
-				installed[pkgName] = PackageInfo{
-					installedVersion: version,
-					pkgType:          "formula",
-				}
-				log.Printf("DEBUG: Found formula %s version %s", pkgName, version)
-			}
+	for _, path := range homebrewPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
 		}
-	} else {
-		log.Printf("DEBUG: Error reading Cellar: %v", err)
 	}
 
-	// Read casks from Caskroom
-	caskroomPath := filepath.Join(brewRoot, "Caskroom")
-	if entries, err := os.ReadDir(caskroomPath); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			pkgName := entry.Name()
-			// Get the version from the opt symlink
-			version := getVersionFromSymlink(brewRoot, pkgName)
-			if version != "" {
-				installed[pkgName] = PackageInfo{
-					installedVersion: version,
-					pkgType:          "cask",
-				}
-				log.Printf("DEBUG: Found cask %s version %s", pkgName, version)
-			}
-		}
-	} else {
-		log.Printf("DEBUG: Error reading Caskroom: %v", err)
-	}
-
-	return installed
+	return "", fmt.Errorf("brew binary not found")
 }
 
-func getVersionFromSymlink(brewRoot, pkgName string) string {
-	optPath := filepath.Join(brewRoot, "opt", pkgName)
-	target, err := os.Readlink(optPath)
+// findHomebrewOwner finds the user who owns the Homebrew installation
+// This is needed because Homebrew refuses to run as root
+// This follows osquery best practices: determine the owner of the tool and run as that user
+func findHomebrewOwner(brewPath string) (string, error) {
+	// Determine Homebrew root directory from brew binary path
+	// e.g., /opt/homebrew/bin/brew -> /opt/homebrew
+	// e.g., /usr/local/bin/brew -> /usr/local
+	brewRoot := filepath.Dir(filepath.Dir(brewPath))
+
+	// Check if the directory exists
+	info, err := os.Stat(brewRoot)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("could not stat Homebrew root %s: %v", brewRoot, err)
 	}
 
-	// Extract version from path like ../Cellar/webp/1.4.2 or ../Caskroom/webp/1.4.2
-	parts := strings.Split(target, "/")
-	if len(parts) > 0 {
-		version := parts[len(parts)-1]
-		return version
+	// Get the owner's UID
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return "", fmt.Errorf("could not get file stat info")
 	}
-	return ""
-}
 
-func getLatestVersion(client *http.Client, pkgName, pkgType string) (string, error) {
-	// Query the Homebrew JSON API
-	apiURL := fmt.Sprintf("https://formulae.brew.sh/api/%s/%s.json", pkgType, pkgName)
-	log.Printf("DEBUG: Querying API: %s", apiURL)
-
-	resp, err := client.Get(apiURL)
+	// Look up the username from UID
+	owner, err := user.LookupId(fmt.Sprintf("%d", stat.Uid))
 	if err != nil {
-		return "", fmt.Errorf("failed to query API: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Check for 404 or other errors
-	if resp.StatusCode == 404 {
-		log.Printf("DEBUG: Package %s not found in API (404)", pkgName)
-		return "", fmt.Errorf("package not found in API")
+		return "", fmt.Errorf("could not lookup user ID %d: %v", stat.Uid, err)
 	}
 
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse the JSON response
-	var apiResp HomebrewFormulaAPIResponse
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		log.Printf("DEBUG: Failed to parse JSON for %s: %v", pkgName, err)
-		return "", fmt.Errorf("failed to parse JSON: %v", err)
-	}
-
-	// Return the stable version
-	if apiResp.Versions.Stable != "" {
-		log.Printf("DEBUG: Got version %s from API for %s", apiResp.Versions.Stable, pkgName)
-		return apiResp.Versions.Stable, nil
-	}
-
-	return "", fmt.Errorf("no stable version found in API response")
+	return owner.Username, nil
 }
