@@ -106,10 +106,10 @@ func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) 
 			continue
 		}
 
-		if latestVersion == "" {
-			log.Printf("DEBUG: Could not find latest version for %s", pkgName)
-			continue
-		}
+		// When running as root (Fleet), sudo -u works without a password
+		// Note: Using exec.Command instead of CommandContext to avoid context cancellation issues in Fleet
+		// Use full path to sudo since osquery may not have /usr/bin in PATH
+		cmd = exec.Command("/usr/bin/sudo", "-u", brewOwner, brewPath, "outdated", "--verbose")
 
 		// Compare versions - if they're different, package is outdated
 		if pkgInfo.installedVersion != latestVersion {
