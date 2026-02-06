@@ -117,6 +117,40 @@ SELECT
 FROM apple_network_quality n, system_info s;
 ```
 
+## Understanding the Metrics
+
+### Responsiveness (RPM)
+
+**RPM** (Roundtrips Per Minute) measures how many sequential round-trips your network can complete in one minute under working conditions. Higher is better.
+
+| RPM | Quality | Experience |
+|-----|---------|------------|
+| < 50 | Poor | Video calls stutter, gaming laggy |
+| 50-200 | Moderate | Usable but noticeable delays |
+| 200-500 | Good | Smooth video calls, responsive apps |
+| > 500 | Excellent | Real-time applications work flawlessly |
+
+### Network Condition Fields
+
+| Field | Values | Description |
+|-------|--------|-------------|
+| **interface_type** | `wifi`, `wiredEthernet`, `cellular` | Physical connection type |
+| **protocol** | `h2`, `h3` | **H2** = HTTP/2 (TCP-based), **H3** = HTTP/3 (QUIC/UDP-based, lower latency) |
+| **proxy_state** | `not_proxied`, `proxied` | Whether traffic goes through a proxy server |
+| **ecn** | `ecn_disabled`, `ecn_enabled` | **ECN** (Explicit Congestion Notification) - allows routers to signal congestion without dropping packets. When enabled, reduces packet loss and improves performance. |
+| **l4s** | `disabled`, `enabled` | **L4S** (Low Latency, Low Loss, Scalable throughput) - next-gen congestion control for ultra-low latency. Requires network and OS support. |
+
+### Latency Metrics
+
+| Metric | What it measures |
+|--------|------------------|
+| **avg_tcp_handshake_ms** | Time to establish TCP connection (3-way handshake) |
+| **avg_tls_handshake_ms** | Time to negotiate TLS encryption (after TCP) |
+| **avg_h2_latency_ms** | Time for HTTP/2 request/response to Apple CDN |
+| **avg_self_h2_latency_ms** | Latency caused by your own upload/download activity (bufferbloat indicator) |
+
+**Tip**: If `avg_self_h2_latency_ms` is much higher than `avg_h2_latency_ms`, your network has **bufferbloat** - queues are building up and causing delays under load.
+
 ## Requirements
 
 - macOS 12 (Monterey) or later
