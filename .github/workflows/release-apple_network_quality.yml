@@ -1,0 +1,60 @@
+name: Release apple_network_quality
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apple_network_quality/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          cd apple_network_quality
+          make deps
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple_network_quality-binaries
+          path: |
+            apple_network_quality/apple_network_quality-x86_64.ext
+            apple_network_quality/apple_network_quality-arm64.ext
+            apple_network_quality/apple_network_quality.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fleet Extensions Release
+          body: |
+            This release includes updated binaries for the following extensions:
+
+            | Extension              | Built in this release |
+            |------------------------|----------------------|
+            | apple_network_quality  | ✅                   |
+            | macos_compatibility    |                      |
+            | santa                  |                      |
+            | system_profiler        |                      |
+            | snap_packages          |                      |
+            | nuget_packages         |                      |
+
+            See attached assets for binaries.
+          files: |
+            apple_network_quality/apple_network_quality-x86_64.ext
+            apple_network_quality/apple_network_quality-arm64.ext
+            apple_network_quality/apple_network_quality.ext
+          draft: false
+          prerelease: false
