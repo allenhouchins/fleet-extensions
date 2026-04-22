@@ -16,6 +16,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [mise](mise/README.md)                             | Mise-installed tools and versions as a native osquery table | macOS, Linux     |
 | [local_network_permissions](local_network_permissions/README.md) | macOS Local Network Privacy permissions as a native osquery table | macOS |
 | [brew_outdated](brew_outdated/README.md)           | Quickly surface out-of-date Homebrew packages | macOS |
+| [softwareupdate](softwareupdate/README.md)         | Pending Apple software updates from `softwareupdate --list` | macOS |
 
 ## Extension Details
 
@@ -76,6 +77,12 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Binaries:** `brew_outdated-amd64.ext`, `brew_outdated-arm64.ext`, `brew_outdated.ext`
 - **Tables:** `brew_outdated`
 
+### [softwareupdate](softwareupdate/README.md)
+- **Description:** Lists available Apple software updates by parsing `softwareupdate --list --verbose`.
+- **Platforms:** macOS (Intel and Apple Silicon)
+- **Binaries:** `softwareupdate-x86_64.ext`, `softwareupdate-arm64.ext`, `softwareupdate.ext`
+- **Tables:** `softwareupdate`
+
 ## Automated Builds
 
 This repository uses GitHub Actions to automatically build and release extensions when changes are pushed to the `main` branch. Each extension has its own workflow that:
@@ -97,7 +104,7 @@ Each extension is self-contained in its own directory. To build an extension:
    make deps
    ```
 3. Build the extension:
-   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`, `local_network_permissions`, `brew_outdated`):
+   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`, `local_network_permissions`, `brew_outdated`, `softwareupdate`):
      ```bash
      make build
      ```

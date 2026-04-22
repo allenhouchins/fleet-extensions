@@ -1,0 +1,63 @@
+name: Release softwareupdate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'softwareupdate/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          cd softwareupdate
+          make deps
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: softwareupdate-binaries
+          path: |
+            softwareupdate/softwareupdate-x86_64.ext
+            softwareupdate/softwareupdate-arm64.ext
+            softwareupdate/softwareupdate.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fleet Extensions Release
+          body: |
+            This release includes updated binaries for the following extensions:
+
+            | Extension              | Built in this release |
+            |------------------------|----------------------|
+            | macos_compatibility    |                      |
+            | santa                  |                      |
+            | system_profiler        |                      |
+            | snap_packages          |                      |
+            | nuget_packages         |                      |
+            | brew_list              |                      |
+            | homebrew_info          |                      |
+            | brew_outdated          |                      |
+            | softwareupdate         | ✅                   |
+
+            See attached assets for binaries.
+          files: |
+            softwareupdate/softwareupdate-x86_64.ext
+            softwareupdate/softwareupdate-arm64.ext
+            softwareupdate/softwareupdate.ext
+          draft: false
+          prerelease: false
