@@ -1,4 +1,4 @@
-# Brew Outdated Osquery Extension
+# Homebrew Outdated Osquery Extension
 
 An osquery extension that provides information about outdated Homebrew packages on macOS systems.
 
@@ -26,8 +26,8 @@ This table returns information about Homebrew packages that have updates availab
    make build
    ```
    This produces:
-   - Universal binary: `brew_outdated.ext` (works on both Intel and Apple Silicon Macs)
-   - Architecture-specific binaries: `brew_outdated-x86_64.ext` (Intel), `brew_outdated-arm64.ext` (Apple Silicon)
+   - Universal binary: `homebrew_outdated.ext` (works on both Intel and Apple Silicon Macs)
+   - Architecture-specific binaries: `homebrew_outdated-x86_64.ext` (Intel), `homebrew_outdated-arm64.ext` (Apple Silicon)
 
 ## Requirements
 
@@ -39,29 +39,29 @@ This table returns information about Homebrew packages that have updates availab
 
 ### With Fleet
 ```bash
-sudo orbit shell -- --extension brew_outdated.ext --allow-unsafe
+sudo orbit shell -- --extension homebrew_outdated.ext --allow-unsafe
 ```
 
 ### With standard osquery
 ```bash
-osqueryi --extension=/path/to/brew_outdated.ext
+osqueryi --extension=/path/to/homebrew_outdated.ext
 ```
 
 ## Example queries and policies
 
 Get all outdated packages:
 ```sql
-SELECT * FROM brew_outdated;
+SELECT * FROM homebrew_outdated;
 ```
 
 Count how many outdated packages are installed:
 ```sql
-SELECT COUNT(*) as outdated_count FROM brew_outdated;
+SELECT COUNT(*) as outdated_count FROM homebrew_outdated;
 ```
 
 Policy to return if `snappy` is out of date:
 ```sql
-SELECT 1 FROM brew_outdated WHERE name = 'snappy';
+SELECT 1 FROM homebrew_outdated WHERE name = 'snappy';
 ```
 
 ## Notes & Limitations
@@ -76,7 +76,7 @@ SELECT 1 FROM brew_outdated WHERE name = 'snappy';
 When running in Fleet, osqueryd typically runs as root. Since Homebrew refuses to run as root, the extension uses `sudo -u` to run `brew outdated` as the user who owns the Homebrew installation. When running as root, `sudo -u` works without requiring a password or special sudoers configuration.
 
 **Troubleshooting in Fleet:**
-- If the table returns empty results, check Fleet/osquery logs for messages starting with `brew_outdated:`
+- If the table returns empty results, check Fleet/osquery logs for messages starting with `homebrew_outdated:`
 - The extension logs errors to help diagnose issues
 
 ## License

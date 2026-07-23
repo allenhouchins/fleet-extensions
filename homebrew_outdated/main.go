@@ -38,7 +38,7 @@ func main() {
 	)
 
 	server, err := osquery.NewExtensionManagerServer(
-		"brew_outdated",
+		"homebrew_outdated",
 		*socket,
 		serverTimeout,
 		serverPingInterval,
@@ -48,9 +48,9 @@ func main() {
 	}
 
 	server.RegisterPlugin(table.NewPlugin(
-		"brew_outdated",
-		brewOutdatedColumns(),
-		generateBrewOutdated,
+		"homebrew_outdated",
+		homebrewOutdatedColumns(),
+		generateHomebrewOutdated,
 	))
 
 	if err := server.Run(); err != nil {
@@ -58,7 +58,7 @@ func main() {
 	}
 }
 
-func brewOutdatedColumns() []table.ColumnDefinition {
+func homebrewOutdatedColumns() []table.ColumnDefinition {
 	return []table.ColumnDefinition{
 		table.TextColumn("name"),
 		table.TextColumn("installed_version"),
@@ -66,7 +66,7 @@ func brewOutdatedColumns() []table.ColumnDefinition {
 	}
 }
 
-func generateBrewOutdated(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
+func generateHomebrewOutdated(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
 	var results []map[string]string
 
 	// Find brew binary

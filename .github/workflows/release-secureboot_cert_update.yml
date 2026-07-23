@@ -46,8 +46,8 @@ jobs:
             |---------------------------|----------------------|
             | apple_network_quality     |                      |
             | brew_list                 |                      |
-            | brew_outdated             |                      |
             | homebrew_info             |                      |
+            | homebrew_outdated         |                      |
             | local_network_permissions |                      |
             | macos_compatibility       |                      |
             | mise                      |                      |

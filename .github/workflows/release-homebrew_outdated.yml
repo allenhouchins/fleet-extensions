@@ -1,11 +1,11 @@
-name: Release brew_outdated
+name: Release homebrew_outdated
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'brew_outdated/**'
+      - 'homebrew_outdated/**'
   workflow_dispatch:
 
 jobs:
@@ -21,18 +21,18 @@ jobs:
 
       - name: Build binaries
         run: |
-          cd brew_outdated
+          cd homebrew_outdated
           make deps
           make build
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: brew_outdated-binaries
+          name: homebrew_outdated-binaries
           path: |
-            brew_outdated/brew_outdated-x86_64.ext
-            brew_outdated/brew_outdated-arm64.ext
-            brew_outdated/brew_outdated.ext
+            homebrew_outdated/homebrew_outdated-x86_64.ext
+            homebrew_outdated/homebrew_outdated-arm64.ext
+            homebrew_outdated/homebrew_outdated.ext
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -46,8 +46,8 @@ jobs:
             |---------------------------|----------------------|
             | apple_network_quality     |                      |
             | brew_list                 |                      |
-            | brew_outdated             | ✅                    |
             | homebrew_info             |                      |
+            | homebrew_outdated         | ✅                    |
             | local_network_permissions |                      |
             | macos_compatibility       |                      |
             | mise                      |                      |
@@ -62,8 +62,8 @@ jobs:
 
             See attached assets for binaries.
           files: |
-            brew_outdated/brew_outdated-x86_64.ext
-            brew_outdated/brew_outdated-arm64.ext
-            brew_outdated/brew_outdated.ext
+            homebrew_outdated/homebrew_outdated-x86_64.ext
+            homebrew_outdated/homebrew_outdated-arm64.ext
+            homebrew_outdated/homebrew_outdated.ext
           draft: false
           prerelease: false

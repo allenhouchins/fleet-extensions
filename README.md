@@ -15,7 +15,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [msft_defender](msft_defender/README.md)           | Access Microsoft Defender health using the `mdatp` binary | macOS               |
 | [mise](mise/README.md)                             | Mise-installed tools and versions as a native osquery table | macOS, Linux     |
 | [local_network_permissions](local_network_permissions/README.md) | macOS Local Network Privacy permissions as a native osquery table | macOS |
-| [brew_outdated](brew_outdated/README.md)           | Quickly surface out-of-date Homebrew packages | macOS |
+| [homebrew_outdated](homebrew_outdated/README.md)   | Quickly surface out-of-date Homebrew packages | macOS |
 | [softwareupdate](softwareupdate/README.md)         | Pending Apple software updates from `softwareupdate --list` | macOS |
 | [secureboot_cert_update](secureboot_cert_update/README.md) | Secure Boot 2023 certificate rollout status and recommended actions | Windows |
 | [windows_yellowkey](windows_yellowkey/README.md) | Per-host verdict for the YellowKey BitLocker bypass (CVE-2026-45585) | Windows |
@@ -73,11 +73,11 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 - **Binaries:** `local_network_permissions-x86_64.ext`, `local_network_permissions-arm64.ext`, `local_network_permissions.ext`
 - **Tables:** `local_network_permissions`
 
-### [brew_outdated](brew_outdated/README.md)
+### [homebrew_outdated](homebrew_outdated/README.md)
 - **Description:** Quickly surface out-of-date Homebrew packages.
 - **Platforms:** macOS (Intel and Apple Silicon)
-- **Binaries:** `brew_outdated-amd64.ext`, `brew_outdated-arm64.ext`, `brew_outdated.ext`
-- **Tables:** `brew_outdated`
+- **Binaries:** `homebrew_outdated-x86_64.ext`, `homebrew_outdated-arm64.ext`, `homebrew_outdated.ext`
+- **Tables:** `homebrew_outdated`
 
 ### [softwareupdate](softwareupdate/README.md)
 - **Description:** Lists available Apple software updates by parsing `softwareupdate --list --verbose`.
@@ -118,7 +118,7 @@ Each extension is self-contained in its own directory. To build an extension:
    make deps
    ```
 3. Build the extension:
-   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`, `local_network_permissions`, `brew_outdated`, `softwareupdate`):
+   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`, `local_network_permissions`, `homebrew_outdated`, `softwareupdate`):
      ```bash
      make build
      ```

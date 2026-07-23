@@ -1,9 +1,9 @@
-# Makefile for brew_outdated osquery extension
+# Makefile for homebrew_outdated osquery extension
 
 # Binary names
-BINARY_NAME=brew_outdated.ext
-X86_64_BINARY=brew_outdated-x86_64.ext
-ARM64_BINARY=brew_outdated-arm64.ext
+BINARY_NAME=homebrew_outdated.ext
+X86_64_BINARY=homebrew_outdated-x86_64.ext
+ARM64_BINARY=homebrew_outdated-arm64.ext
 
 # Go parameters
 GOCMD=go

@@ -1,4 +1,4 @@
-module brew_outdated
+module homebrew_outdated
 
 go 1.26
 
