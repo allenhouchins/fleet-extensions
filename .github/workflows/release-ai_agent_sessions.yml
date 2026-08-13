@@ -1,0 +1,87 @@
+name: Release ai_agent_sessions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ai_agent_sessions/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    # Every target cross-compiles from macOS: the extension is pure Go, and the
+    # universal macOS binary needs lipo.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: ai_agent_sessions/go.sum
+
+      - name: Test
+        run: |
+          cd ai_agent_sessions
+          make deps
+          make test
+
+      - name: Build binaries
+        run: |
+          cd ai_agent_sessions
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai_agent_sessions-binaries
+          path: |
+            ai_agent_sessions/ai_agent_sessions.ext
+            ai_agent_sessions/ai_agent_sessions-x86_64.ext
+            ai_agent_sessions/ai_agent_sessions-arm64.ext
+            ai_agent_sessions/ai_agent_sessions-amd64.ext
+            ai_agent_sessions/ai_agent_sessions-linux-arm64.ext
+            ai_agent_sessions/ai_agent_sessions-amd64.exe
+            ai_agent_sessions/ai_agent_sessions-arm64.exe
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fleet Extensions Release
+          body: |
+            This release includes updated binaries for the following extensions:
+
+            | Extension                 | Built in this release |
+            |---------------------------|----------------------|
+            | ai_agent_sessions         | ✅                    |
+            | apple_network_quality     |                      |
+            | brew_list                 |                      |
+            | homebrew_info             |                      |
+            | homebrew_outdated         |                      |
+            | local_network_permissions |                      |
+            | macos_compatibility       |                      |
+            | mise                      |                      |
+            | msft_defender             |                      |
+            | nuget_packages            |                      |
+            | santa                     |                      |
+            | secureboot_cert_update    |                      |
+            | snap_packages             |                      |
+            | softwareupdate            |                      |
+            | system_profiler           |                      |
+            | ubuntu_pro                |                      |
+            | windows_yellowkey         |                      |
+
+            See attached assets for binaries.
+          files: |
+            ai_agent_sessions/ai_agent_sessions.ext
+            ai_agent_sessions/ai_agent_sessions-x86_64.ext
+            ai_agent_sessions/ai_agent_sessions-arm64.ext
+            ai_agent_sessions/ai_agent_sessions-amd64.ext
+            ai_agent_sessions/ai_agent_sessions-linux-arm64.ext
+            ai_agent_sessions/ai_agent_sessions-amd64.exe
+            ai_agent_sessions/ai_agent_sessions-arm64.exe
+          draft: false
+          prerelease: false
