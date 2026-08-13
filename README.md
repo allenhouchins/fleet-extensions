@@ -6,6 +6,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 
 | Extension              | Description                                              | Platform(s)         |
 |-----------------------|----------------------------------------------------------|---------------------|
+| [ai_agent_sessions](ai_agent_sessions/README.md) | AI coding agent session history and conversation content as native osquery tables | macOS, Linux, Windows |
 | [snap_packages](snap_packages/README.md)         | Snap package information as a native osquery table       | Linux               |
 | [macos_compatibility](macos_compatibility/README.md)   | macOS hardware/software compatibility table              | macOS               |
 | [santa](santa/README.md)                 | Santa binary authorization rules and decisions           | macOS               |
@@ -21,6 +22,12 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [windows_yellowkey](windows_yellowkey/README.md) | Per-host verdict for the YellowKey BitLocker bypass (CVE-2026-45585) | Windows |
 
 ## Extension Details
+
+### [ai_agent_sessions](ai_agent_sessions/README.md)
+- **Description:** Reports the AI coding agent session history stored on a host — Claude Code, GitHub Copilot CLI, Cursor, Codex CLI, and Gemini CLI. `ai_agent_sessions` gives one metadata row per session and never reads prompt or response text; `ai_agent_session_messages` gives the conversation content itself, one row per block, with row and size caps by default.
+- **Platforms:** macOS (Intel and Apple Silicon), Linux (amd64, arm64), Windows (amd64, arm64)
+- **Binaries:** `ai_agent_sessions-x86_64.ext`, `ai_agent_sessions-arm64.ext`, `ai_agent_sessions.ext`, `ai_agent_sessions-amd64.ext`, `ai_agent_sessions-linux-arm64.ext`, `ai_agent_sessions-amd64.exe`, `ai_agent_sessions-arm64.exe`
+- **Tables:** `ai_agent_sessions`, `ai_agent_session_messages`
 
 ### [snap_packages](snap_packages/README.md)
 - **Description:** Provides snap package information as a native osquery table.
@@ -145,6 +152,11 @@ Each extension is self-contained in its own directory. To build an extension:
      This produces:
      - `<extension>-amd64.exe` (for 64-bit Intel/AMD Windows)
      - `<extension>-arm64.exe` (for 64-bit ARM Windows)
+   - For **macOS, Linux, and Windows extensions** (`ai_agent_sessions`):
+     ```bash
+     make build
+     ```
+     This produces macOS (`ai_agent_sessions.ext` universal, `-x86_64.ext`, `-arm64.ext`), Linux (`-amd64.ext`, `-linux-arm64.ext`), and Windows (`-amd64.exe`, `-arm64.exe`) binaries. `make macos`, `make linux`, and `make windows` build a single platform.
    - For **Windows binaries from cross-platform extension** (`nuget_packages`):
      ```bash
      make windows
