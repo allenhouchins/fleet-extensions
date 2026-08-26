@@ -28,6 +28,11 @@ var (
 	socket   = flag.String("socket", "", "Path to the extensions UNIX domain socket")
 	timeout  = flag.Int("timeout", 3, "Seconds to wait for autoloaded extensions")
 	interval = flag.Int("interval", 3, "Seconds delay between connectivity checks")
+	// verbose must be declared because osqueryd passes it to every
+	// autoloaded extension when running in verbose mode. Without this,
+	// flag.Parse() fails with "flag provided but not defined: -verbose"
+	// and the extension exits before registering its table.
+	_ = flag.Bool("verbose", false, "Enable verbose informational messages")
 )
 
 // networkQualityResult represents the JSON output from networkQuality -c
@@ -36,13 +41,13 @@ type networkQualityResult struct {
 	DLThroughput int64 `json:"dl_throughput"`
 	ULThroughput int64 `json:"ul_throughput"`
 
-	// Responsiveness in RPM (roundtrips per minute, higher is better)
-	// Note: dl_responsiveness and ul_responsiveness may not always be present
-	DLResponsiveness float64 `json:"dl_responsiveness"`
-	ULResponsiveness float64 `json:"ul_responsiveness"`
-	Responsiveness   float64 `json:"responsiveness"`
+	// Responsiveness in RPM (roundtrips per minute, higher is better),
+	// measured under load
+	Responsiveness float64 `json:"responsiveness"`
 
-	// Latency (may not always be present)
+	// Idle (unloaded) baseline RTT in milliseconds. The gap between this
+	// and the loaded latency implied by Responsiveness is the bufferbloat
+	// signal.
 	BaseRTT float64 `json:"base_rtt"`
 
 	// Flow counts
@@ -138,6 +143,10 @@ func networkQualityColumns() []table.ColumnDefinition {
 		// Responsiveness (RPM - roundtrips per minute, higher is better)
 		table.DoubleColumn("responsiveness"),
 
+		// Idle baseline RTT in milliseconds (unloaded). Compare against
+		// the latency implied by responsiveness to see bufferbloat.
+		table.DoubleColumn("base_rtt_ms"),
+
 		// Flow counts
 		table.IntegerColumn("dl_flows"),
 		table.IntegerColumn("ul_flows"),
@@ -159,6 +168,7 @@ func networkQualityColumns() []table.ColumnDefinition {
 		table.TextColumn("proxy_state"),
 		table.TextColumn("ecn"),
 		table.TextColumn("l4s"),
+		table.TextColumn("rat"),
 
 		// Test metadata
 		table.TextColumn("test_endpoint"),
@@ -218,6 +228,7 @@ func generateNetworkQuality(ctx context.Context, queryContext table.QueryContext
 	proxyState := getFirstKey(result.Other.ProxyState)
 	ecn := getFirstKey(result.Other.ECNValues)
 	l4s := getFirstKey(result.Other.L4SEnablement)
+	rat := getFirstKey(result.Other.RAT)
 
 	row := map[string]string{
 		// Throughput
@@ -228,6 +239,7 @@ func generateNetworkQuality(ctx context.Context, queryContext table.QueryContext
 
 		// Responsiveness
 		"responsiveness": strconv.FormatFloat(result.Responsiveness, 'f', 2, 64),
+		"base_rtt_ms":    strconv.FormatFloat(result.BaseRTT, 'f', 2, 64),
 
 		// Flows
 		"dl_flows": strconv.Itoa(result.DLFlows),
@@ -250,6 +262,7 @@ func generateNetworkQuality(ctx context.Context, queryContext table.QueryContext
 		"proxy_state":    proxyState,
 		"ecn":            ecn,
 		"l4s":            l4s,
+		"rat":            rat,
 
 		// Test metadata
 		"test_endpoint": result.TestEndpoint,
