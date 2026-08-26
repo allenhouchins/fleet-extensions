@@ -42,8 +42,18 @@ type networkQualityResult struct {
 	ULThroughput int64 `json:"ul_throughput"`
 
 	// Responsiveness in RPM (roundtrips per minute, higher is better),
-	// measured under load
+	// measured under load. Only present in the default parallel mode
+	// (no -s/-d/-u flags), which is the only mode this extension invokes.
 	Responsiveness float64 `json:"responsiveness"`
+
+	// DLResponsiveness/ULResponsiveness are the per-direction equivalents
+	// of Responsiveness, only present when networkQuality runs in
+	// sequential mode (-s, or implied by -d/-u). This extension currently
+	// always invokes parallel mode, so these are always zero here, not
+	// because they're wrong, but because nothing triggers the mode that
+	// populates them. Kept for when/if sequential-mode support is added.
+	DLResponsiveness float64 `json:"dl_responsiveness"`
+	ULResponsiveness float64 `json:"ul_responsiveness"`
 
 	// Idle (unloaded) baseline RTT in milliseconds. The gap between this
 	// and the loaded latency implied by Responsiveness is the bufferbloat
