@@ -1,3 +1,5 @@
+> `snap_packages` table in Fleet is [coming soon](https://github.com/fleetdm/fleet/issues/47789).
+
 # Snap Packages Osquery Extension (Go)
 
 A Go-based osquery extension that provides snap package information as a native table.
