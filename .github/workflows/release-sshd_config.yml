@@ -1,15 +1,17 @@
-name: Release homebrew_info
+name: Release sshd_config
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'homebrew_info/**'
+      - 'sshd_config/**'
   workflow_dispatch:
 
 jobs:
   build-and-release:
+    # Every target cross-compiles from macOS: the extension is pure Go, and the
+    # universal macOS binary needs lipo.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,21 +20,29 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.26'
+          cache-dependency-path: sshd_config/go.sum
+
+      - name: Test
+        run: |
+          cd sshd_config
+          make deps
+          make test
 
       - name: Build binaries
         run: |
-          cd homebrew_info
-          make deps
+          cd sshd_config
           make build
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: homebrew_info-binaries
+          name: sshd_config-binaries
           path: |
-            homebrew_info/homebrew_info-x86_64.ext
-            homebrew_info/homebrew_info-arm64.ext
-            homebrew_info/homebrew_info.ext
+            sshd_config/sshd_config.ext
+            sshd_config/sshd_config-x86_64.ext
+            sshd_config/sshd_config-arm64.ext
+            sshd_config/sshd_config-amd64.ext
+            sshd_config/sshd_config-linux-arm64.ext
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -44,9 +54,10 @@ jobs:
 
             | Extension                 | Built in this release |
             |---------------------------|----------------------|
+            | ai_agent_sessions         |                      |
             | apple_network_quality     |                      |
             | brew_list                 |                      |
-            | homebrew_info             | ✅                    |
+            | homebrew_info             |                      |
             | homebrew_outdated         |                      |
             | local_network_permissions |                      |
             | macos_compatibility       |                      |
@@ -57,15 +68,17 @@ jobs:
             | secureboot_cert_update    |                      |
             | snap_packages             |                      |
             | softwareupdate            |                      |
-            | sshd_config               |                      |
+            | sshd_config               | ✅                    |
             | system_profiler           |                      |
             | ubuntu_pro                |                      |
+            | windows_yellowkey         |                      |
 
             See attached assets for binaries.
           files: |
-            homebrew_info/homebrew_info-x86_64.ext
-            homebrew_info/homebrew_info-arm64.ext
-            homebrew_info/homebrew_info.ext
+            sshd_config/sshd_config.ext
+            sshd_config/sshd_config-x86_64.ext
+            sshd_config/sshd_config-arm64.ext
+            sshd_config/sshd_config-amd64.ext
+            sshd_config/sshd_config-linux-arm64.ext
           draft: false
           prerelease: false
-
