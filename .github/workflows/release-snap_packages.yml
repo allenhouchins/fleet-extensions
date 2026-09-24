@@ -56,6 +56,7 @@ jobs:
             | secureboot_cert_update    |                      |
             | snap_packages             | ✅                    |
             | softwareupdate            |                      |
+            | sshd_config               |                      |
             | system_profiler           |                      |
             | ubuntu_pro                |                      |
 

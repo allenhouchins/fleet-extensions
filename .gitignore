@@ -3,6 +3,7 @@
 # Build artifacts (released by CI)
 ai_agent_sessions/*.ext
 ai_agent_sessions/*.exe
+sshd_config/*.ext
 
 # Internal documentation (local reference only)
 GIT-WORKFLOW.md
