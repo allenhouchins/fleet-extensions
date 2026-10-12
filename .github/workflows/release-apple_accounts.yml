@@ -1,0 +1,81 @@
+name: Release apple_accounts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apple_accounts/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    # macOS runner: the universal binary needs lipo, and the tests build their
+    # fixture databases with /usr/bin/sqlite3.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: apple_accounts/go.sum
+
+      - name: Test
+        run: |
+          cd apple_accounts
+          make deps
+          make test
+
+      - name: Build binaries
+        run: |
+          cd apple_accounts
+          make build
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple_accounts-binaries
+          path: |
+            apple_accounts/apple_accounts.ext
+            apple_accounts/apple_accounts-x86_64.ext
+            apple_accounts/apple_accounts-arm64.ext
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Fleet Extensions Release
+          body: |
+            This release includes updated binaries for the following extensions:
+
+            | Extension                 | Built in this release |
+            |---------------------------|----------------------|
+            | ai_agent_sessions         |                      |
+            | apple_accounts            | ✅                    |
+            | apple_network_quality     |                      |
+            | brew_list                 |                      |
+            | homebrew_info             |                      |
+            | homebrew_outdated         |                      |
+            | local_network_permissions |                      |
+            | macos_compatibility       |                      |
+            | mise                      |                      |
+            | msft_defender             |                      |
+            | nuget_packages            |                      |
+            | santa                     |                      |
+            | secureboot_cert_update    |                      |
+            | snap_packages             |                      |
+            | softwareupdate            |                      |
+            | sshd_config               |                      |
+            | system_profiler           |                      |
+            | ubuntu_pro                |                      |
+            | windows_yellowkey         |                      |
+
+            See attached assets for binaries.
+          files: |
+            apple_accounts/apple_accounts.ext
+            apple_accounts/apple_accounts-x86_64.ext
+            apple_accounts/apple_accounts-arm64.ext
+          draft: false
+          prerelease: false
