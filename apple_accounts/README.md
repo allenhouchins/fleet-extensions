@@ -72,12 +72,15 @@ SELECT 1 FROM apple_accounts WHERE active = 1 LIMIT 1;
 
 ## Full Disk Access
 
-`~/Library/Accounts` is protected by macOS privacy controls (TCC). Running as root is not enough: the process reading it needs **Full Disk Access**. Under Fleet, the extension is launched by osqueryd, so it is covered by the Full Disk Access grant for osqueryd in Fleet's recommended privacy preferences (PPPC) configuration profile. If the existing ATC workaround returns rows on a host, this table will too.
+`~/Library/Accounts` is protected by macOS privacy controls (TCC). Running as root is not enough: it needs **Full Disk Access**, and macOS checks that against the *responsible* process, the app or daemon at the top of the process chain, not the process that opens the file.
+
+- **Under Fleet**, launchd starts orbit, orbit starts osqueryd, and osqueryd starts the extension, so the grant that counts is orbit's. Fleet's [Full Disk Access profile for fleetd](https://github.com/fleetdm/fleet/blob/main/docs/solutions/macos/configuration-profiles/allow-fleetd-full-disk-access.mobileconfig) grants it to orbit. If the existing ATC workaround returns rows on a host, this table will too.
+- **With `sudo orbit shell` or `osqueryi`**, the terminal app you run it from is the responsible process, so the terminal needs Full Disk Access: System Settings > Privacy & Security > Full Disk Access, then quit and reopen the terminal. `sudo` does not change this.
 
 When a user's database exists but cannot be read, the query fails with an error such as:
 
 ```
-error generating table: reading /Users/alice/Library/Accounts/Accounts4.sqlite: open /Users/alice/Library/Accounts/Accounts4.sqlite: operation not permitted (osqueryd needs Full Disk Access)
+error generating table: reading /Users/alice/Library/Accounts/Accounts4.sqlite: open /Users/alice/Library/Accounts/Accounts4.sqlite: operation not permitted (Full Disk Access required)
 ```
 
 This is deliberate. A table that skipped unreadable databases would make a host without Full Disk Access look like a host where nobody is signed in, and a `NOT EXISTS` policy would pass on it. A user who has no database at all (someone who has never used anything backed by Internet Accounts) is not an error; they just have no row. The query also fails, with `sqlite3`'s message, if a database does not have the expected tables, so a future macOS schema change shows up as an error rather than as an empty result.
@@ -137,7 +140,7 @@ Remove the ATC definition before (or at the same time as) deploying the extensio
 
 - Go 1.26 or later to build
 - macOS, with `/usr/bin/sqlite3` (part of the base system)
-- Full Disk Access for osqueryd (see above)
+- Full Disk Access for orbit, or for the terminal when testing interactively (see above)
 - osquery or Fleet
 
 ## Usage
@@ -148,7 +151,7 @@ Remove the ATC definition before (or at the same time as) deploying the extensio
 sudo orbit shell -- --extension apple_accounts.ext --allow-unsafe
 ```
 
-Run this from a terminal app that has Full Disk Access, since an interactive shell is attributed to the terminal rather than to osqueryd.
+Run this from a terminal app that has Full Disk Access. An interactive shell is attributed to the terminal, not to orbit, so Fleet's profile does not cover it.
 
 ### With standard osquery
 

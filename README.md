@@ -26,7 +26,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 ## Extension Details
 
 ### [apple_accounts](apple_accounts/README.md)
-- **Description:** Reports the Apple Account each local user is signed in to, read from `~/Library/Accounts/Accounts4.sqlite`, one row per account with `uid`, `username`, `apple_account`, `active`, and `authenticated`. Replaces queries against `MobileMeAccounts.plist`, which is empty on macOS 27, and the auto table construction (ATC) workaround for it. Needs Full Disk Access for osqueryd, and fails the query rather than returning no rows when it cannot read a database.
+- **Description:** Reports the Apple Account each local user is signed in to, read from `~/Library/Accounts/Accounts4.sqlite`, one row per account with `uid`, `username`, `apple_account`, `active`, and `authenticated`. Replaces queries against `MobileMeAccounts.plist`, which is empty on macOS 27, and the auto table construction (ATC) workaround for it. Needs Full Disk Access (Fleet's Full Disk Access profile for fleetd grants it to orbit), and fails the query rather than returning no rows when it cannot read a database.
 - **Platforms:** macOS (Intel and Apple Silicon)
 - **Binaries:** `apple_accounts-x86_64.ext`, `apple_accounts-arm64.ext`, `apple_accounts.ext`
 - **Tables:** `apple_accounts`

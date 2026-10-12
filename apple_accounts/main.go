@@ -87,7 +87,7 @@ func generateAppleAccounts(ctx context.Context, queryContext table.QueryContext)
 			// database osqueryd cannot read from looking like a user who is
 			// not signed in, which a policy would count as a pass.
 			if errors.Is(err, fs.ErrPermission) {
-				return nil, fmt.Errorf("reading %s: %w (osqueryd needs Full Disk Access)", path, err)
+				return nil, fmt.Errorf("reading %s: %w (Full Disk Access required)", path, err)
 			}
 			return nil, fmt.Errorf("reading %s: %w", path, err)
 		}
