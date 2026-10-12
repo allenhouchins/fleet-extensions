@@ -6,6 +6,7 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 
 | Extension              | Description                                              | Platform(s)         |
 |-----------------------|----------------------------------------------------------|---------------------|
+| [apple_accounts](apple_accounts/README.md) | Apple Account (Apple ID / iCloud) each local user is signed in to | macOS |
 | [sshd_config](sshd_config/README.md) | Effective OpenSSH server configuration from `sshd -G`, with optional `Match` evaluation | macOS, Linux |
 | [ai_agent_sessions](ai_agent_sessions/README.md) | AI coding agent session history and conversation content as native osquery tables | macOS, Linux, Windows |
 | [snap_packages](snap_packages/README.md)         | Snap package information as a native osquery table       | Linux               |
@@ -23,6 +24,12 @@ A collection of Go-based osquery extensions for Fleet and osquery, providing add
 | [windows_yellowkey](windows_yellowkey/README.md) | Per-host verdict for the YellowKey BitLocker bypass (CVE-2026-45585) | Windows |
 
 ## Extension Details
+
+### [apple_accounts](apple_accounts/README.md)
+- **Description:** Reports the Apple Account each local user is signed in to, read from `~/Library/Accounts/Accounts4.sqlite`, one row per account with `uid`, `username`, `apple_account`, `active`, and `authenticated`. Replaces queries against `MobileMeAccounts.plist`, which is empty on macOS 27, and the auto table construction (ATC) workaround for it. Needs Full Disk Access for osqueryd, and fails the query rather than returning no rows when it cannot read a database.
+- **Platforms:** macOS (Intel and Apple Silicon)
+- **Binaries:** `apple_accounts-x86_64.ext`, `apple_accounts-arm64.ext`, `apple_accounts.ext`
+- **Tables:** `apple_accounts`
 
 ### [sshd_config](sshd_config/README.md)
 - **Description:** Reports the OpenSSH server's effective configuration — every setting after defaults, `Include` files, and optionally `Match` blocks are applied — by running `sshd -G`, one row per setting. Constrain `connection_spec` to evaluate `Match` blocks for a given user, host, or address. Falls back to `sshd -T` on OpenSSH older than 9.3.
@@ -132,7 +139,7 @@ Each extension is self-contained in its own directory. To build an extension:
    make deps
    ```
 3. Build the extension:
-   - For **macOS extensions** (`macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`, `local_network_permissions`, `homebrew_outdated`, `softwareupdate`):
+   - For **macOS extensions** (`apple_accounts`, `macos_compatibility`, `santa`, `system_profiler`, `nuget_packages`, `brew_list`, `mise`, `mdatp_status`, `local_network_permissions`, `homebrew_outdated`, `softwareupdate`):
      ```bash
      make build
      ```

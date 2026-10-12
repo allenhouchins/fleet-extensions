@@ -78,6 +78,7 @@ jobs:
 
             | Extension                 | Built in this release |
             |---------------------------|----------------------|
+            | apple_accounts            |                      |
             | apple_network_quality     |                      |
             | brew_list                 |                      |
             | homebrew_info             |                      |

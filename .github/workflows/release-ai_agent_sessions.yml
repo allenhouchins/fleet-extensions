@@ -57,6 +57,7 @@ jobs:
             | Extension                 | Built in this release |
             |---------------------------|----------------------|
             | ai_agent_sessions         | ✅                    |
+            | apple_accounts            |                      |
             | apple_network_quality     |                      |
             | brew_list                 |                      |
             | homebrew_info             |                      |
