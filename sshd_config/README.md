@@ -6,7 +6,7 @@ An osquery extension that reports the OpenSSH server's **effective** configurati
 
 Reading `/etc/ssh/sshd_config` tells you what someone wrote down, not what sshd will do. The file leaves most settings at their compiled-in defaults, pulls in drop-ins through `Include` (`/etc/ssh/sshd_config.d/*.conf` on most Linux distributions and on macOS), and can override settings per connection with `Match` blocks. `sshd -G` resolves all of that and prints every setting with the value sshd will actually use. This table exposes that dump, one row per setting, so settings like `PermitRootLogin`, `PasswordAuthentication`, or the allowed ciphers can be checked across a fleet without anyone parsing config files.
 
-The table reports configuration only. It returns rows on any host that has sshd installed, whether or not the server is running — on macOS, for instance, it reports the configuration Remote Login would use even while Remote Login is off. To find out whether sshd is actually listening, use `listening_ports`, `systemd_units`, or `launchd`.
+The table reports configuration only. With OpenSSH 9.3 or later it returns rows on any host that has sshd installed, whether or not the server is running — on macOS, for instance, it reports the configuration Remote Login would use even while Remote Login is off. Older sshd has extra requirements; see [How sshd is invoked](#how-sshd-is-invoked). To find out whether sshd is actually listening, use `listening_ports`, `systemd_units`, or `launchd`.
 
 ## Table Schema
 
@@ -38,8 +38,9 @@ WHERE connection_spec = 'user=root,host=bastion.example.com,addr=10.0.0.5'
 - Other operators (`LIKE`, `!=`, ...) are not passed to sshd; they filter the global configuration's rows, which have an empty `connection_spec`.
 - An invalid spec fails the query with sshd's error (`Invalid test mode specification ...`) rather than returning an empty result.
 - A spec only changes the result when the host's configuration has a `Match` block that applies to it.
+- **A partial spec needs OpenSSH 7.7 or later.** Older sshd requires `user`, `host`, and `addr` together, and fails the query on a spec such as `user=root` with `user, host and addr are all required when testing Match configs`. That affects RHEL/CentOS 7 and Amazon Linux 2 (7.4) and Ubuntu 18.04 (7.6).
 
-To evaluate a spec per row of another table, use `CROSS JOIN` with the other table on the left. A plain `JOIN` lets SQLite scan `sshd_config` first, so the spec never reaches sshd and the join matches nothing.
+To evaluate a spec per row of another table, use `CROSS JOIN` with the other table on the left. A plain `JOIN` lets SQLite scan `sshd_config` first, so the spec never reaches sshd and the join matches nothing. The example below passes only `user`, so it needs OpenSSH 7.7 or later.
 
 ```sql
 -- Effective PasswordAuthentication for every local login account.
@@ -57,7 +58,12 @@ WHERE u.uid >= 500 AND u.uid < 65534
 | No `connection_spec` constraint | `sshd -G` | `sshd -T` |
 | `connection_spec = '<spec>'` | `sshd -G -T -C <spec>` | `sshd -T -C <spec>` |
 
-`sshd -G` was added in OpenSSH 9.3 (March 2023). Many supported server distributions ship older OpenSSH — Ubuntu 22.04 (8.9), Debian 12 (9.2), RHEL 9 and Amazon Linux 2023 (8.7) — so when sshd rejects `-G` as an unknown option, the extension retries with `-T`. The two print the same dump. The difference is that `-T` also runs sshd's startup checks, loads the host keys, and on Debian and Ubuntu requires the privilege separation directory (`/run/sshd`) to exist. osqueryd runs as root, so that works on any host where sshd has been set up and started at least once. On a host with an older sshd that has never been started, the query fails and reports sshd's error.
+`sshd -G` was added in OpenSSH 9.3 (March 2023). Several supported distributions still ship older OpenSSH — Ubuntu 20.04 (8.2), Ubuntu 22.04 (8.9), and Debian 12 (9.2) — so when sshd rejects `-G` as an unknown option, the extension retries with `-T`. RHEL 9 and Amazon Linux 2023 first shipped 8.7, but their current releases ship 9.9 and use `-G`. The two print the same dump. The difference is that `-T` also runs sshd's startup checks, which add two requirements:
+
+- **Host keys must exist.** Debian and Ubuntu generate them when the package is installed; RHEL, Amazon Linux, and Alpine generate them the first time sshd starts. They persist after that.
+- **On Debian and Ubuntu, sshd must be running.** `-T` requires the privilege separation directory `/run/sshd`, which `ssh.service` creates when it starts (`RuntimeDirectory=sshd`) and removes when it stops, and `/run` is cleared at every boot. On a host that has sshd installed but stopped or disabled, the query fails with `Missing privilege separation directory: /run/sshd`.
+
+When either check fails, the query fails and reports sshd's error.
 
 `-G -T -C` works around an OpenSSH quirk: despite the man page, every sshd from 9.3 on rejects `-C` unless `-T` is also given. With both flags, `-G` still prints the configuration and exits before `-T` loads any host keys, so on current sshd a connection spec never needs host keys or root.
 
@@ -100,7 +106,9 @@ SELECT value AS listen_address FROM sshd_config WHERE keyword = 'listenaddress';
 
 ### As a Fleet policy
 
-A Fleet policy passes when its query returns a row. Writing the check as `NOT EXISTS` makes hosts without sshd pass instead of fail:
+A Fleet policy passes when its query returns a row. Writing the check as `NOT EXISTS` makes hosts without sshd pass instead of fail.
+
+A query that errors does not fail the policy: Fleet stores no response for that host, which counts as neither passing nor failing. That happens when sshd rejects its configuration, when a connection spec is invalid or too partial for an old sshd, and when an older sshd can't run `-T` (see [How sshd is invoked](#how-sshd-is-invoked)). A broken `sshd_config` therefore shows up as a host with no policy result, not as a failing host.
 
 ```sql
 -- Root cannot log in with a password.
@@ -161,7 +169,7 @@ osqueryi --extension=/path/to/sshd_config.ext
 
 ## Notes and limitations
 
-- **Verified on macOS only.** The extension was tested end to end on macOS against Apple's OpenSSH 10.3p1. The Linux binaries were built but not run on a Linux host. The `-T` fallback for sshd older than 9.3 is covered by unit tests that use a stand-in sshd, and by a read of the OpenSSH source for 8.0 through current, but has not been run against a real older sshd.
+- **Tested on macOS and Linux.** On macOS the extension was tested end to end in Fleet's osqueryd 5.24 against Apple's OpenSSH 10.3p1. On Linux, the table's code was run against each distribution's own sshd in container images of Ubuntu 20.04, 22.04, and 24.04, Debian 12 and 13, Rocky Linux 9, Amazon Linux 2 and 2023, Alpine 3.17 and 3.22, and Fedora. Those runs covered OpenSSH 7.4 through 10.2, both the `-G` path and the `-T` fallback, and arm64 plus amd64 (Ubuntu 22.04). Wherever sshd's requirements were met, the output matched `sshd -T` line for line, including `Match` evaluation. The Linux runs did not load the extension into osquery, and the containers had no systemd.
 - **Windows is not supported.** Windows' optional OpenSSH Server ships `sshd.exe`, which accepts the same flags, but it has not been tested and no Windows binary is built.
 - **No `-f`.** The table always reports the configuration at sshd's default path, which is the one the running server uses unless it was started with `-f`.
 - **Not a liveness check.** See [Overview](#overview): the table reports configuration whether or not sshd is running.
